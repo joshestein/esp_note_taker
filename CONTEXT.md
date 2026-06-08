@@ -1,0 +1,28 @@
+# ESP32-S3 Voice Note Device -- Glossary
+
+## Capture
+A single audio recording session. Begins when the user presses the Record Button and ends when they press it again. Stored as one WAV file on the SD card. Discarded if shorter than 2 seconds.
+
+## Record Button
+The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture. A second press ends the Capture.
+
+## Menu Button
+The PWR button (GPIO18). Wakes the device from Idle and enters the Menu. Menu features are deferred.
+
+## Idle
+The device state when no Capture is in progress. The CPU is in light sleep; GPIO interrupts from either button trigger immediate wake. The e-paper display retains the last drawn image without power.
+
+## Recording State
+The device state during an active Capture. Audio is read from the codec and written in chunks to an open WAV file on the SD card.
+
+## Light Sleep
+The ESP32-S3 sleep mode used during Idle. CPU is paused, RAM is retained, GPIO interrupts wake the device in ~1ms. Chosen over deep sleep to allow instant Capture start on button press.
+
+## WAV File
+The storage format for each Capture. Raw PCM, 16kHz sample rate, 2 channels, 16-bit depth -- matching the manufacturer audio example. Named by timestamp: `note_YYYYMMDD_HHMMSS.wav`.
+
+## SD Card
+The storage medium for WAV files. Required for device operation. Exposed via `sdcard_bsp` from the manufacturer example.
+
+## RTC
+The PCF85063 real-time clock (I2C 0x51). Provides timestamps for WAV file naming. Time-setting is deferred to Menu implementation.
