@@ -1,3 +1,3 @@
 idf_component_register(
-  REQUIRES driver
+  REQUIRES esp_driver_gpio
   INCLUDE_DIRS "./")
