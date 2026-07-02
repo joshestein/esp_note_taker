@@ -3,12 +3,12 @@
 #include "driver/gpio.h"
 #include <stdio.h>
 
-static EventGroupHandle_t button_groups;
+static EventGroupHandle_t button_group;
 
 static void IRAM_ATTR boot_button_handler(void* arg) {
   BaseType_t xHigherPriorityTaskWoken, xResult;
   xHigherPriorityTaskWoken = pdFALSE;
-  xResult = xEventGroupSetBitsFromISR(button_groups, BOOT_BUTTON_BIT,
+  xResult = xEventGroupSetBitsFromISR(button_group, BOOT_BUTTON_BIT,
                                       &xHigherPriorityTaskWoken);
   if (xResult == pdPASS) {
     // If xHigherPriorityTaskWoken is now set to pdTRUE then a context
@@ -22,7 +22,7 @@ static void IRAM_ATTR boot_button_handler(void* arg) {
 static void IRAM_ATTR power_button_handler(void* arg) {
   BaseType_t xHigherPriorityTaskWoken, xResult;
   xHigherPriorityTaskWoken = pdFALSE;
-  xResult = xEventGroupSetBitsFromISR(button_groups, POWER_BUTTON_BIT,
+  xResult = xEventGroupSetBitsFromISR(button_group, POWER_BUTTON_BIT,
                                       &xHigherPriorityTaskWoken);
   if (xResult == pdPASS) {
     // If xHigherPriorityTaskWoken is now set to pdTRUE then a context
@@ -45,7 +45,7 @@ static void gpio_init(void) {
 }
 
 EventGroupHandle_t button_init(void) {
-  button_groups = xEventGroupCreate();
+  button_group = xEventGroupCreate();
 
   gpio_init();
 
@@ -56,5 +56,5 @@ EventGroupHandle_t button_init(void) {
   gpio_isr_handler_add(BOOT_BUTTON, boot_button_handler, (void *)BOOT_BUTTON);
   gpio_isr_handler_add(POWER_BUTTON, power_button_handler, (void *)POWER_BUTTON);
 
-  return button_groups;
+  return button_group;
 }
