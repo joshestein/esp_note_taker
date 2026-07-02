@@ -13,7 +13,7 @@ The PWR button (GPIO18). Wakes the device from Idle and enters the Menu. Menu fe
 The device state when no Capture is in progress. The CPU is in light sleep; GPIO interrupts from either button trigger immediate wake. The e-paper display retains the last drawn image without power. The audio codec is powered off (via `Audio_PWR_PIN`) to save battery; the SD card stays mounted for fast record start.
 
 ## Recording State
-The device state during an active Capture. Audio is read from the codec and written in chunks to an open WAV file on the SD card.
+The device state during an active Capture. Audio is read from the codec and written in chunks to an open WAV file on the SD card. Recording is naive: every sample is kept from the moment capture starts, including the codec's power-on transient (an audible pop at the start of each file), which is accepted rather than detected or discarded. The codec's ADC high-pass filter is left enabled to DC-correct in hardware and soften that pop without dropping samples. (This is separate from the 2-second minimum-Capture rule under **Capture**, which discards a whole short Capture, not samples within one.)
 
 ## Finalizing
 The device state after a Capture ends, while the record task patches the WAV header and closes the file on the SD card. Button presses during Finalizing are dropped, not queued -- a press here does not start a new Capture. Prevents accidental stacked recordings on a pocket-worn device and avoids racing the still-open file handle.
