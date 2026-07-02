@@ -8,9 +8,7 @@
 static EventGroupHandle_t button_group;
 
 static void button_single_click_cb(void *arg, void *usr_data) {
-  ESP_LOGI("BUTTON", "BUTTON_SINGLE_CLICK");
   uint32_t bit_num = (uint32_t)(uintptr_t)usr_data;
-  ESP_LOGI("BUTTON", "Setting bit: %d", bit_num);
   xEventGroupSetBits(button_group, bit_num);
 }
 
