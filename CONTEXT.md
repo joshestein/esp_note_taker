@@ -27,6 +27,9 @@ The storage format for each Capture. PCM, 16kHz sample rate, 1 channel (mono), 1
 ## Recording Indicator
 An LED held steady for the full duration of a Capture, off otherwise. Lets the wearer confirm a session is active without close inspection. Chosen over haptic/audio cues for low power and simplicity.
 
+## Error Indication
+A distinct LED pattern (e.g. blinking, unlike the steady Recording Indicator) signalling a failure the wearer must act on: no SD card at record start, card full, or card removed mid-Capture. The record task aborts to Finalizing (or straight to Idle if the card is gone) on any `fwrite` failure and raises this indication.
+
 ## SD Card
 The storage medium for WAV files. Required for device operation. Exposed via `sdcard_bsp` from the manufacturer example.
 
