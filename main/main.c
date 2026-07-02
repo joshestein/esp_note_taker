@@ -1,5 +1,4 @@
 #include "button.h"
-#include "driver/gpio.h"
 #include <stdio.h>
 
 typedef enum {
