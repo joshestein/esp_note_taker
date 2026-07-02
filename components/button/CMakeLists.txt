@@ -1,4 +1,4 @@
 idf_component_register(
   SRCS "button.c"
-  PRIV_REQUIRES driver
+  PRIV_REQUIRES config
   INCLUDE_DIRS "./")
