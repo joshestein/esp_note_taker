@@ -1,47 +1,53 @@
 #include "button.h"
 #include "config.h"
-#include "driver/gpio.h"
+#include "esp_log.h"
+#include "iot_button.h"
 #include <stdint.h>
 
 static EventGroupHandle_t button_group;
 
-static void IRAM_ATTR button_handler(void* arg) {
-  BaseType_t xHigherPriorityTaskWoken, xResult;
-  xHigherPriorityTaskWoken = pdFALSE;
-  uint32_t bit_num = (uint32_t)(uintptr_t) arg;
-  xResult = xEventGroupSetBitsFromISR(button_group, bit_num, &xHigherPriorityTaskWoken);
-  if (xResult == pdPASS) {
-    // If xHigherPriorityTaskWoken is now set to pdTRUE then a context
-    // switch should be requested.  The macro used is port specific and
-    // will be either portYIELD_FROM_ISR() or portEND_SWITCHING_ISR() -
-    // refer to the documentation page for the port being used.
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-  }
-}
-
-static void gpio_init(void) {
-  gpio_config_t gpio_conf = {};
-  gpio_conf.intr_type = GPIO_INTR_NEGEDGE;
-  gpio_conf.mode = GPIO_MODE_INPUT;
-  gpio_conf.pin_bit_mask = (1ULL << BOOT_BUTTON) | (1ULL << POWER_BUTTON);
-  gpio_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  gpio_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-
-  ESP_ERROR_CHECK_WITHOUT_ABORT(gpio_config(&gpio_conf));
+static void button_single_click_cb(void *arg, void *usr_data) {
+  ESP_LOGI("BUTTON", "BUTTON_SINGLE_CLICK");
+  uint32_t bit_num = (uint32_t)(uintptr_t)arg;
+  xEventGroupSetBits(button_group, bit_num);
 }
 
 EventGroupHandle_t button_init(void) {
   button_group = xEventGroupCreate();
 
-  gpio_init();
+  const button_config_t menu_btn_cfg = {0};
+  const button_gpio_config_t menu_btn_gpio_cfg = {
+      .gpio_num = BOOT_BUTTON,
+      .active_level = 0,
+      .enable_power_save = true,
+  };
+  button_handle_t menu_gpio_btn = NULL;
+  esp_err_t ret = iot_button_new_gpio_device(&menu_btn_cfg, &menu_btn_gpio_cfg,
+                                             &menu_gpio_btn);
+  if (menu_gpio_btn == NULL) {
+    ESP_LOGE("BUTTON", "Menu button create failed");
+    return button_group;
+  }
 
-  // Needed once we want to wake up from deep sleep on button press
-  gpio_wakeup_enable(BOOT_BUTTON, GPIO_INTR_LOW_LEVEL);
-  gpio_wakeup_enable(POWER_BUTTON, GPIO_INTR_LOW_LEVEL);
+  iot_button_register_cb(menu_gpio_btn, BUTTON_SINGLE_CLICK, NULL,
+                         button_single_click_cb, (void *)BOOT_BUTTON_BIT);
 
-  gpio_install_isr_service(0); // 0 = default
-  gpio_isr_handler_add(BOOT_BUTTON, button_handler, (void *)BOOT_BUTTON_BIT);
-  gpio_isr_handler_add(POWER_BUTTON, button_handler, (void *)POWER_BUTTON_BIT);
+  const button_config_t power_btn_cfg = {0};
+  const button_gpio_config_t power_btn_gpio_cfg = {
+      .gpio_num = POWER_BUTTON,
+      .active_level = 0,
+      .enable_power_save = true,
+  };
+  button_handle_t power_gpio_btn = NULL;
+  ret = iot_button_new_gpio_device(&power_btn_cfg, &power_btn_gpio_cfg,
+                                   &power_gpio_btn);
+  if (power_gpio_btn == NULL) {
+    ESP_LOGE("BUTTON", "Power button create failed");
+    return button_group;
+  }
+
+  iot_button_register_cb(power_gpio_btn, BUTTON_SINGLE_CLICK, NULL,
+                         button_single_click_cb, (void *)POWER_BUTTON_BIT);
 
   return button_group;
 }
