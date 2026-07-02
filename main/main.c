@@ -19,13 +19,15 @@ void app_main(void) {
         portMAX_DELAY);
 
     if ((uxBits & BOOT_BUTTON_BIT) != 0) {
-        printf("Boot button pressed\n");
-        if (state == IDLE) {
-            state = RECORDING;
-        } else if (state == RECORDING) {
-            state = POST_SAVE;
-        }
-    } else if ((uxBits & POWER_BUTTON_BIT) != 0) {
+      printf("Boot button pressed\n");
+      if (state == IDLE) {
+        state = RECORDING;
+      } else if (state == RECORDING) {
+        state = POST_SAVE;
+      }
+    }
+
+    if ((uxBits & POWER_BUTTON_BIT) != 0) {
       printf("Power button pressed\n");
     }
 
