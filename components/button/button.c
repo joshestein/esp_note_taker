@@ -4,25 +4,11 @@
 
 static EventGroupHandle_t button_group;
 
-static void IRAM_ATTR boot_button_handler(void* arg) {
+static void IRAM_ATTR button_handler(void* arg) {
   BaseType_t xHigherPriorityTaskWoken, xResult;
   xHigherPriorityTaskWoken = pdFALSE;
-  xResult = xEventGroupSetBitsFromISR(button_group, BOOT_BUTTON_BIT,
-                                      &xHigherPriorityTaskWoken);
-  if (xResult == pdPASS) {
-    // If xHigherPriorityTaskWoken is now set to pdTRUE then a context
-    // switch should be requested.  The macro used is port specific and
-    // will be either portYIELD_FROM_ISR() or portEND_SWITCHING_ISR() -
-    // refer to the documentation page for the port being used.
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-  }
-}
-
-static void IRAM_ATTR power_button_handler(void* arg) {
-  BaseType_t xHigherPriorityTaskWoken, xResult;
-  xHigherPriorityTaskWoken = pdFALSE;
-  xResult = xEventGroupSetBitsFromISR(button_group, POWER_BUTTON_BIT,
-                                      &xHigherPriorityTaskWoken);
+  uint32_t bit_num = (uint32_t)(uintptr_t) arg;
+  xResult = xEventGroupSetBitsFromISR(button_group, bit_num, &xHigherPriorityTaskWoken);
   if (xResult == pdPASS) {
     // If xHigherPriorityTaskWoken is now set to pdTRUE then a context
     // switch should be requested.  The macro used is port specific and
@@ -52,8 +38,8 @@ EventGroupHandle_t button_init(void) {
   gpio_wakeup_enable(POWER_BUTTON, GPIO_INTR_LOW_LEVEL);
 
   gpio_install_isr_service(0); // 0 = default
-  gpio_isr_handler_add(BOOT_BUTTON, boot_button_handler, (void *)BOOT_BUTTON);
-  gpio_isr_handler_add(POWER_BUTTON, power_button_handler, (void *)POWER_BUTTON);
+  gpio_isr_handler_add(BOOT_BUTTON, button_handler, (void *)BOOT_BUTTON_BIT);
+  gpio_isr_handler_add(POWER_BUTTON, button_handler, (void *)POWER_BUTTON_BIT);
 
   return button_group;
 }
