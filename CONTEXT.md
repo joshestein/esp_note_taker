@@ -21,6 +21,9 @@ The ESP32-S3 sleep mode used during Idle. CPU is paused, RAM is retained, GPIO i
 ## WAV File
 The storage format for each Capture. PCM, 16kHz sample rate, 1 channel (mono), 16-bit depth. Mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage. Named by timestamp: `note_YYYYMMDD_HHMMSS.wav`.
 
+## Recording Indicator
+An LED held steady for the full duration of a Capture, off otherwise. Lets the wearer confirm a session is active without close inspection. Chosen over haptic/audio cues for low power and simplicity.
+
 ## SD Card
 The storage medium for WAV files. Required for device operation. Exposed via `sdcard_bsp` from the manufacturer example.
 
