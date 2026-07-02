@@ -32,10 +32,10 @@ void app_main(void) {
     }
 
     if (state == POST_SAVE) {
-        printf("Saving data...\n");
-        vTaskDelay(pdMS_TO_TICKS(2000));
-        printf("Data saved. Returning to IDLE state.\n");
-        state = IDLE;
+      printf("Saving data...\n");
+      vTaskDelay(pdMS_TO_TICKS(2000));
+      printf("Data saved. Returning to IDLE state.\n");
+      state = IDLE;
     }
   }
 }
