@@ -1,6 +1,7 @@
 #include "button.h"
 #include "config.h"
 #include "driver/gpio.h"
+#include <stdint.h>
 
 static EventGroupHandle_t button_group;
 
