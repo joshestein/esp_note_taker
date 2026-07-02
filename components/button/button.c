@@ -51,7 +51,7 @@ EventGroupHandle_t button_init(void) {
   gpio_wakeup_enable(BOOT_BUTTON, GPIO_INTR_LOW_LEVEL);
   gpio_wakeup_enable(POWER_BUTTON, GPIO_INTR_LOW_LEVEL);
 
-  gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+  gpio_install_isr_service(0); // 0 = default
   gpio_isr_handler_add(BOOT_BUTTON, boot_button_handler, (void *)BOOT_BUTTON);
   gpio_isr_handler_add(POWER_BUTTON, power_button_handler, (void *)POWER_BUTTON);
 
