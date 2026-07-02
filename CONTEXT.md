@@ -15,6 +15,9 @@ The device state when no Capture is in progress. The CPU is in light sleep; GPIO
 ## Recording State
 The device state during an active Capture. Audio is read from the codec and written in chunks to an open WAV file on the SD card.
 
+## Finalizing
+The device state after a Capture ends, while the record task patches the WAV header and closes the file on the SD card. Button presses during Finalizing are dropped, not queued -- a press here does not start a new Capture. Prevents accidental stacked recordings on a pocket-worn device and avoids racing the still-open file handle.
+
 ## Light Sleep
 The ESP32-S3 sleep mode used during Idle. CPU is paused, RAM is retained, GPIO interrupts wake the device in ~1ms. Chosen over deep sleep to allow instant Capture start on button press.
 
