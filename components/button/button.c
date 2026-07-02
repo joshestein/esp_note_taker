@@ -35,6 +35,7 @@ EventGroupHandle_t button_init(void) {
 
   gpio_init();
 
+  // Needed once we want to wake up from deep sleep on button press
   gpio_wakeup_enable(BOOT_BUTTON, GPIO_INTR_LOW_LEVEL);
   gpio_wakeup_enable(POWER_BUTTON, GPIO_INTR_LOW_LEVEL);
 
