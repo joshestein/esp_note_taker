@@ -1,4 +1,5 @@
 #include "button.h"
+#include "esp_rom_sys.h"
 #include <stdio.h>
 
 typedef enum {
@@ -19,7 +20,7 @@ void app_main(void) {
         portMAX_DELAY);
 
     if ((uxBits & BOOT_BUTTON_BIT) != 0) {
-      printf("Boot button pressed\n");
+      esp_rom_printf("Boot button pressed\n");
       if (state == IDLE) {
         state = RECORDING;
       } else if (state == RECORDING) {
@@ -28,13 +29,13 @@ void app_main(void) {
     }
 
     if ((uxBits & POWER_BUTTON_BIT) != 0) {
-      printf("Power button pressed\n");
+      esp_rom_printf("Power pressed...\n");
     }
 
     if (state == POST_SAVE) {
-      printf("Saving data...\n");
+      esp_rom_printf("Saving data...\n");
       vTaskDelay(pdMS_TO_TICKS(2000));
-      printf("Data saved. Returning to IDLE state.\n");
+      esp_rom_printf("Data saved. Returning to IDLE state.\n");
       state = IDLE;
     }
   }
