@@ -26,9 +26,7 @@ void app_main(void) {
       } else if (state == RECORDING) {
         state = POST_SAVE;
       }
-    }
-
-    if ((uxBits & POWER_BUTTON_BIT) != 0) {
+    } else if ((uxBits & POWER_BUTTON_BIT) != 0) {
       esp_rom_printf("Power pressed...\n");
     }
 
