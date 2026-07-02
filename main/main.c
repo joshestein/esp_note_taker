@@ -1,6 +1,5 @@
-#include "button.h"
+#include "button_input.h"
 #include "esp_rom_sys.h"
-#include <stdio.h>
 
 typedef enum {
   IDLE = 0,

@@ -1,5 +1,5 @@
-#ifndef BUTTON_H
-#define BUTTON_H
+#ifndef BUTTON_INPUT_H
+#define BUTTON_INPUT_H
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
