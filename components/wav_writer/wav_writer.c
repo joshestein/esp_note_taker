@@ -7,6 +7,8 @@ static const uint16_t bits = 16; // Bits per sample
 static const uint16_t num_channels = 1; // Mono
 static const uint32_t sample_rate = 16000;
 static uint32_t bytes_written = 0;
+static const uint32_t byte_rate = sample_rate * bits * num_channels / 8;
+static const uint16_t block_align = num_channels * bits / 8;
 
 esp_err_t wav_open(const char *path) {
   wav_file = fopen(path, "w");
@@ -25,9 +27,7 @@ esp_err_t wav_open(const char *path) {
   fwrite(&audio_format, 1, 2, wav_file);
   fwrite(&num_channels, 1, 2, wav_file);
   fwrite(&sample_rate, 1, 4, wav_file);
-  uint32_t byte_rate = sample_rate * bits * num_channels / 8;
   fwrite(&byte_rate, 1, 4, wav_file);
-  uint16_t block_align = num_channels * bits / 8;
   fwrite(&block_align, 1, 2, wav_file);
   fwrite(&bits, 1, 2, wav_file);
   fwrite("data", 1, 4, wav_file);
