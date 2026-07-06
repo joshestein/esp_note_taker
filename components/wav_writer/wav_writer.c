@@ -6,6 +6,7 @@ static FILE *wav_file = NULL;
 static const uint16_t bits = 16; // Bits per sample
 static const uint16_t num_channels = 1; // Mono
 static const uint32_t sample_rate = 16000;
+static uint32_t bytes_written = 0;
 
 esp_err_t wav_open(const char *path) {
   wav_file = fopen(path, "w");
@@ -34,6 +35,14 @@ esp_err_t wav_open(const char *path) {
   return ESP_OK;
 }
 
-esp_err_t wav_write(const void *data, size_t len) {}
+esp_err_t wav_write(const void *data, size_t len) {
+    size_t bytes_attempted_written = fwrite(data, 1, len, wav_file);
+    if (bytes_attempted_written != len) {
+        return ESP_FAIL;
+    }
+
+    bytes_written += len;
+    return ESP_OK;
+}
 
 esp_err_t wav_close(void) {}
