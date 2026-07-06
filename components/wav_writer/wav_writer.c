@@ -12,7 +12,7 @@ static const uint32_t byte_rate = sample_rate * bits * num_channels / 8;
 static const uint16_t block_align = num_channels * bits / 8;
 
 esp_err_t wav_open(const char *path) {
-  wav_file = fopen(path, "w");
+  wav_file = fopen(path, "wb");
   if (wav_file == NULL) {
     return ESP_FAIL;
   }
