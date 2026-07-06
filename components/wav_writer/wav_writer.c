@@ -46,4 +46,21 @@ esp_err_t wav_write(const void *data, size_t len) {
     return ESP_OK;
 }
 
-esp_err_t wav_close(void) {}
+esp_err_t wav_close(void) {
+    fseek(wav_file, 4, SEEK_SET);
+    // Total file size - 8 bytes (RIFF header and size field) = 44 - 8 + bytes_written = 36 + bytes_written
+    uint32_t chunk_size = 36 + bytes_written;
+    fwrite(&chunk_size, 1, 4, wav_file);
+
+    // Total data size = bytes_written
+    fseek(wav_file, 40, SEEK_SET);
+    fwrite(&bytes_written, 1, 4, wav_file);
+
+    fclose(wav_file);
+
+    // Reset for next file
+    wav_file = NULL;
+    bytes_written = 0;
+
+    return ESP_OK;
+}
