@@ -1,5 +1,7 @@
 #include "button_input.h"
+#include "esp_err.h"
 #include "esp_rom_sys.h"
+#include "sdcard_bsp.h"
 
 typedef enum {
   IDLE = 0,
@@ -10,6 +12,8 @@ typedef enum {
 void app_main(void) {
   app_state_t state = IDLE;
   EventGroupHandle_t button_group = button_init();
+
+  ESP_ERROR_CHECK(sdcard_init());
 
   for (;;) {
     EventBits_t uxBits = xEventGroupWaitBits(
