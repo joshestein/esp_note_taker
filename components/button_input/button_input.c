@@ -17,7 +17,7 @@ EventGroupHandle_t button_init(void) {
 
   const button_config_t menu_btn_cfg = {0};
   const button_gpio_config_t menu_btn_gpio_cfg = {
-      .gpio_num = BOOT_BUTTON,
+      .gpio_num = RECORD_BUTTON,
       .active_level = 0,
       .enable_power_save = true,
   };
@@ -30,7 +30,7 @@ EventGroupHandle_t button_init(void) {
   }
 
   iot_button_register_cb(menu_gpio_btn, BUTTON_SINGLE_CLICK, NULL,
-                         button_single_click_cb, (void *)BOOT_BUTTON_BIT);
+                         button_single_click_cb, (void *)RECORD_BUTTON_BIT);
 
   const button_config_t power_btn_cfg = {0};
   const button_gpio_config_t power_btn_gpio_cfg = {

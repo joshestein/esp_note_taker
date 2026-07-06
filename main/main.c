@@ -13,12 +13,12 @@ void app_main(void) {
 
   for (;;) {
     EventBits_t uxBits = xEventGroupWaitBits(
-        button_group, BOOT_BUTTON_BIT | POWER_BUTTON_BIT,
+        button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT,
         pdTRUE,  /* Clear before returning. */
         pdFALSE, /* Don't wait for both bits, either bit will do. */
         portMAX_DELAY);
 
-    if ((uxBits & BOOT_BUTTON_BIT) != 0) {
+    if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       esp_rom_printf("Boot button pressed\n");
       if (state == IDLE) {
         state = RECORDING;
