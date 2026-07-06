@@ -3,10 +3,11 @@
 #include <stdio.h>
 
 static FILE *wav_file = NULL;
+static uint32_t bytes_written = 0;
+
 static const uint16_t bits = 16; // Bits per sample
 static const uint16_t num_channels = 1; // Mono
 static const uint32_t sample_rate = 16000;
-static uint32_t bytes_written = 0;
 static const uint32_t byte_rate = sample_rate * bits * num_channels / 8;
 static const uint16_t block_align = num_channels * bits / 8;
 
