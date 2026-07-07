@@ -1,10 +1,14 @@
 #include "sdcard_bsp.h"
+#include "dirent.h"
 #include "driver/gpio.h"
 #include "driver/sdmmc_host.h"
 #include "esp_err.h"
+#include "esp_log.h"
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "sdmmc_cmd.h"
+
+static const char *TAG = "sdcard_bsp";
 
 #define SDMMC_D0_PIN GPIO_NUM_40
 #define SDMMC_CLK_PIN GPIO_NUM_39
@@ -28,7 +32,31 @@ esp_err_t sdcard_init(void) {
   slot_config.cmd = SDMMC_CMD_PIN;
   slot_config.d0 = SDMMC_D0_PIN;
 
-  return esp_vfs_fat_sdmmc_mount(SDlist, &host, &slot_config, &mount_config, &card_host);
+  return esp_vfs_fat_sdmmc_mount(SDlist, &host, &slot_config, &mount_config,
+                                 &card_host);
+}
+
+int sdcard_scan_max(void) {
+  DIR *dir = opendir(SDlist);
+  struct dirent *entry;
+  int max = 0;
+
+  if (dir == NULL) {
+    ESP_LOGE(TAG, "Failed to open %s to scan for existing recordings", SDlist);
+    abort();
+  }
+
+  while ((entry = readdir(dir)) != NULL) {
+    int num;
+    if (sscanf(entry->d_name, "note_%d.wav", &num) == 1) {
+      if (num > max) {
+        max = num;
+      }
+    }
+  }
+
+  closedir(dir);
+  return max;
 }
 
 float sdcard_GetValue(void) {
