@@ -7,6 +7,7 @@
 #include "freertos/idf_additions.h"
 #include "sdcard_bsp.h"
 #include "wav_writer.h"
+#include <stdio.h>
 
 static const char *TAG = "main";
 
@@ -54,6 +55,7 @@ void app_main(void) {
   EventGroupHandle_t button_group = button_init();
 
   ESP_ERROR_CHECK(sdcard_init());
+  int note_counter = sdcard_scan_max();
   ESP_ERROR_CHECK(audio_bsp_init());
   init_led();
   gpio_set_level(LED_PIN, 1); // LED starts off
@@ -81,7 +83,10 @@ void app_main(void) {
       ESP_LOGI(TAG, "Boot button pressed");
       if (state == IDLE) {
         state = RECORDING;
-        ESP_ERROR_CHECK(wav_open("/sdcard/test.wav"));
+        ++note_counter;
+        char path[32];
+        snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter);
+        ESP_ERROR_CHECK(wav_open(path));
         is_recording = true;
         gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
         xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
