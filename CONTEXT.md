@@ -16,7 +16,7 @@ A mode, mutually exclusive with recording -- you cannot start a Capture while in
 The navigation model for the Menu: exactly one item is shown on screen at a time, and the Menu Button steps to the next one. Chosen over a scrolling multi-item list because the e-paper display refreshes slowly and only a single card region needs repainting per step.
 
 ## Recordings (menu card)
-The Menu card that lists existing Captures newest-first (timestamp filenames sort naturally), stepped one at a time. The Record Button plays the shown Capture through the speaker; playback uses the same ES8311 codec, so it must be powered on for playback as it is for recording.
+The Menu card that lists existing Captures newest-first (sequence filenames sort naturally), stepped one at a time. The Record Button plays the shown Capture through the speaker; playback uses the same ES8311 codec, so it must be powered on for playback as it is for recording.
 
 ## Sync (menu card)
 The Menu card that connects to Wi-Fi and pushes Captures to a paired computer on the same LAN, which runs the AI transcription and keeps the files (see ADR 0003). Transcription runs off-device (too large for the ESP32-S3). Correct RTC time is obtained here via NTP rather than a manual time-setting UI. Design is in progress.
@@ -55,7 +55,7 @@ The device state after a Capture ends, while the record task patches the WAV hea
 The ESP32-S3 sleep mode used during Idle. CPU is paused, RAM is retained, GPIO interrupts wake the device in ~1ms. Chosen over deep sleep to allow instant Capture start on button press.
 
 ## WAV File
-The storage format for each Capture. PCM, 16kHz sample rate, 1 channel (mono), 16-bit depth. Mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage. Named by timestamp: `note_YYYYMMDD_HHMMSS.wav`. The header's length fields are written only when the Capture ends (patched on close), so a sudden power loss mid-Capture leaves that one file unplayable -- an accepted risk, not mitigated by periodic flushing.
+The storage format for each Capture. PCM, 16kHz sample rate, 1 channel (mono), 16-bit depth. Mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage. Named by a monotonic sequence number in v1: `note_NNNN.wav`, assigned at Capture start and increasing per Capture so newest sorts last. Timestamp naming (`note_YYYYMMDD_HHMMSS.wav`) is deferred until the clock is trustworthy (set via Sync/NTP); the RTC exists but is unset on a fresh device. The header's length fields are written only when the Capture ends (patched on close), so a sudden power loss mid-Capture leaves that one file unplayable -- an accepted risk, not mitigated by periodic flushing.
 
 ## Auto-stop
 A Capture has no fixed time limit; it runs until the wearer presses Record again. It ends early only on a resource threshold -- low battery or near-full SD card -- stopping cleanly (finalize + close) so the memo survives rather than being lost to a dead battery or full card. Thresholds are deferred.
@@ -70,4 +70,4 @@ A distinct LED pattern (e.g. blinking, unlike the steady Recording Indicator) si
 The storage medium for WAV files. Required for device operation. Exposed via `sdcard_bsp` from the manufacturer example.
 
 ## RTC
-The PCF85063 real-time clock (I2C 0x51). Provides timestamps for WAV file naming. Time-setting is deferred to Menu implementation.
+The PCF85063 real-time clock (I2C 0x51). Intended source of timestamps for WAV file naming, but unused in v1 (Captures use a sequence number -- see **WAV File**). Its supply is diode-OR'd from the 3V3 rail and the main battery, so once set it holds time through light sleep and soft power-off, losing it only if the battery is drained or removed. Time-setting is deferred to Sync/NTP; until then the clock is untrusted and naming stays sequence-based.
