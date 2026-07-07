@@ -1,9 +1,9 @@
 #include "audio_bsp.h"
 #include "button_input.h"
 #include "config.h"
+#include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
-#include "driver/gpio.h"
 #include "freertos/idf_additions.h"
 #include "sdcard_bsp.h"
 #include "wav_writer.h"
@@ -20,14 +20,14 @@ static volatile bool is_recording = false;
 static SemaphoreHandle_t s_mutex = NULL;
 
 static void init_led(void) {
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << LED_PIN),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    ESP_ERROR_CHECK(gpio_config(&io_conf));
+  gpio_config_t io_conf = {
+      .pin_bit_mask = (1ULL << LED_PIN),
+      .mode = GPIO_MODE_OUTPUT,
+      .pull_up_en = GPIO_PULLUP_DISABLE,
+      .pull_down_en = GPIO_PULLDOWN_DISABLE,
+      .intr_type = GPIO_INTR_DISABLE,
+  };
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
 }
 
 static void record_task(void *arg) {
@@ -64,7 +64,7 @@ void app_main(void) {
       ESP_LOGI(TAG, "Saving data...");
       xSemaphoreTake(s_mutex,
                      portMAX_DELAY); // Block until recording task finishes
-      gpio_set_level(LED_PIN, 1); // Turn LED off
+      gpio_set_level(LED_PIN, 1);    // Turn LED off
       ESP_ERROR_CHECK(wav_close());
       state = IDLE;
       ESP_LOGI(TAG, "Data saved. Returning to IDLE state.");
