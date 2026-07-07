@@ -40,6 +40,7 @@ void app_main(void) {
 
   ESP_ERROR_CHECK(sdcard_init());
   ESP_ERROR_CHECK(audio_bsp_init());
+  s_mutex = xSemaphoreCreateBinary();
 
   for (;;) {
     if (state == FINALISING) {
@@ -63,7 +64,6 @@ void app_main(void) {
       if (state == IDLE) {
         state = RECORDING;
         ESP_ERROR_CHECK(wav_open("/sdcard/test.wav"));
-        s_mutex = xSemaphoreCreateBinary();
         is_recording = true;
         xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
       } else if (state == RECORDING) {
