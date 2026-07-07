@@ -138,3 +138,7 @@ esp_err_t audio_bsp_init(void) {
   ESP_ERROR_CHECK(codec_init());
   return ESP_OK;
 }
+
+esp_err_t audio_bsp_record(void *data, size_t len) {
+  return (esp_err_t)esp_codec_dev_read(codec_handle, data, len);
+}
