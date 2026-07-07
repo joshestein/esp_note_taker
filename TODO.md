@@ -12,7 +12,13 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] Dedicated record task (Model A): `esp_codec_dev_read` -> PSRAM buffer -> `fwrite`
 - [ ] PSRAM ring/double buffer between codec read and SD write (absorbs SD write stalls)
 - [x] WAV writer: placeholder 44-byte header on open, stream samples counting bytes, patch `RIFF`+`data` sizes on close
-- [ ] Filename from RTC (PCF85063, I2C 0x51): `note_YYYYMMDD_HHMMSS.wav`
+- [ ] Filename from monotonic sequence (v1): `note_NNNN.wav`, 4-digit zero-pad, assigned at Capture start
+  - Source: scan `/sdcard` **once at mount** (boot / card insert) for the highest existing `note_NNNN`, cache max in RAM; each Capture uses `max+1` and bumps the RAM value. No NVS.
+  - No per-record scan -> zero added latency on the light-sleep wake-to-record path (SD stays mounted through Idle)
+  - Card swap self-heals: remount rescans, so the number is always derived from the card actually present (no cross-card clobber)
+  - Discarded (<2s) Capture: number already consumed, leaves a gap -- harmless, sort still holds
+  - Ceiling 9999: past it the pad overflows and natural sort breaks -- accepted for v1
+- [ ] Deferred: filename from RTC (PCF85063, I2C 0x51) `note_YYYYMMDD_HHMMSS.wav` once clock set via Sync/NTP; needs I2C bus hoisted out of `audio_bsp` so codec + RTC share one bus
 - [ ] Record everything naively -- no warm-up detection, no sample discard (startup pop accepted)
 
 ## State machine (replace stub in `main.c`)
