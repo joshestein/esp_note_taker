@@ -1,10 +1,10 @@
 #include "audio_bsp.h"
 #include "config.h"
-#include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "esp_check.h"
 #include "esp_codec_dev.h"
+#include "esp_codec_dev_defaults.h"
 #include "esp_err.h"
 
 #define VOICE_VOLUME 80
