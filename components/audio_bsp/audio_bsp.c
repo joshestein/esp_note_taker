@@ -10,7 +10,7 @@
 #define VOICE_VOLUME 80
 #define MIC_GAIN 20
 
-static const char *TAG = "i2s";
+static const char *TAG = "audio_bsp";
 static i2s_chan_handle_t tx_handle = NULL;
 static i2s_chan_handle_t rx_handle = NULL;
 static esp_codec_dev_handle_t codec_handle = NULL;
