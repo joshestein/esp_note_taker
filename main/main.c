@@ -1,10 +1,12 @@
 #include "audio_bsp.h"
 #include "button_input.h"
 #include "esp_err.h"
-#include "esp_rom_sys.h"
+#include "esp_log.h"
 #include "freertos/idf_additions.h"
 #include "sdcard_bsp.h"
 #include "wav_writer.h"
+
+static const char *TAG = "main";
 
 typedef enum {
   IDLE = 0,
@@ -19,7 +21,7 @@ static void record_task(void *arg) {
   const size_t buffer_size = 1024;
   uint8_t *buffer = malloc(buffer_size);
   if (buffer == NULL) {
-    esp_rom_printf("Failed to allocate buffer for recording\n");
+    ESP_LOGE(TAG, "Failed to allocate buffer for recording");
     vTaskDelete(NULL);
     return;
   }
@@ -44,12 +46,12 @@ void app_main(void) {
 
   for (;;) {
     if (state == FINALISING) {
-      esp_rom_printf("Saving data...\n");
+      ESP_LOGI(TAG, "Saving data...");
       xSemaphoreTake(s_mutex,
                      portMAX_DELAY); // Block until recording task finishes
       ESP_ERROR_CHECK(wav_close());
       state = IDLE;
-      esp_rom_printf("Data saved. Returning to IDLE state.\n");
+      ESP_LOGI(TAG, "Data saved. Returning to IDLE state.");
       continue;
     }
 
@@ -60,7 +62,7 @@ void app_main(void) {
         portMAX_DELAY);
 
     if ((uxBits & RECORD_BUTTON_BIT) != 0) {
-      esp_rom_printf("Boot button pressed\n");
+      ESP_LOGI(TAG, "Boot button pressed");
       if (state == IDLE) {
         state = RECORDING;
         ESP_ERROR_CHECK(wav_open("/sdcard/test.wav"));
@@ -71,7 +73,7 @@ void app_main(void) {
         is_recording = false;
       }
     } else if ((uxBits & POWER_BUTTON_BIT) != 0) {
-      esp_rom_printf("Power pressed...\n");
+      ESP_LOGI(TAG, "Power pressed...");
     }
   }
 }
