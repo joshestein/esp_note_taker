@@ -5,13 +5,13 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 ## Recording flow (core)
 
 - [ ] Add LED GPIO to `config.h` (Recording Indicator) -- pick a free pin
-- [ ] Bring in SD support: lift `sdcard_bsp` (SDMMC 1-line, D0=40 CLK=39 CMD=41), mount `/sdcard` at boot, keep mounted in Idle
-- [ ] Bring in codec support: lift `audio_bsp` (ES8311 via `esp_codec_dev`), configure **mono / 16kHz / 16-bit**
+- [x] Bring in SD support: lift `sdcard_bsp` (SDMMC 1-line, D0=40 CLK=39 CMD=41), mount `/sdcard` at boot, keep mounted in Idle
+- [x] Bring in codec support: lift `audio_bsp` (ES8311 via `esp_codec_dev`), configure **mono / 16kHz / 16-bit**
 - [ ] Confirm ADC high-pass filter (REG1B/1C) is enabled on the record path
 - [ ] Gate codec power via `Audio_PWR_PIN` (GPIO42): off in Idle, on at record start
-- [ ] Dedicated record task (Model A): `esp_codec_dev_read` -> PSRAM buffer -> `fwrite`
+- [x] Dedicated record task (Model A): `esp_codec_dev_read` -> PSRAM buffer -> `fwrite`
 - [ ] PSRAM ring/double buffer between codec read and SD write (absorbs SD write stalls)
-- [ ] WAV writer: placeholder 44-byte header on open, stream samples counting bytes, patch `RIFF`+`data` sizes on close
+- [x] WAV writer: placeholder 44-byte header on open, stream samples counting bytes, patch `RIFF`+`data` sizes on close
 - [ ] Filename from RTC (PCF85063, I2C 0x51): `note_YYYYMMDD_HHMMSS.wav`
 - [ ] Record everything naively -- no warm-up detection, no sample discard (startup pop accepted)
 
@@ -21,7 +21,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] Recording -> Finalizing: signal record task to patch header + close file
 - [ ] Finalizing: **drop** button presses (no queued restart), then -> Idle
 - [ ] Wire LED off on leaving Recording
-- [ ] Replace the fake 2s `vTaskDelay` "save" (`main.c:32-36`) with real Finalizing
+- [x] Replace the fake 2s `vTaskDelay` "save" (`main.c:32-36`) with real Finalizing
 
 ## Reliability
 
