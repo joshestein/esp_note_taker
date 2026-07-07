@@ -9,7 +9,7 @@
 typedef enum {
   IDLE = 0,
   RECORDING,
-  POST_SAVE,
+  FINALISING,
 } app_state_t;
 
 static volatile bool is_recording = false;
@@ -42,6 +42,16 @@ void app_main(void) {
   ESP_ERROR_CHECK(audio_bsp_init());
 
   for (;;) {
+    if (state == FINALISING) {
+      esp_rom_printf("Saving data...\n");
+      xSemaphoreTake(s_mutex,
+                     portMAX_DELAY); // Block until recording task finishes
+      ESP_ERROR_CHECK(wav_close());
+      state = IDLE;
+      esp_rom_printf("Data saved. Returning to IDLE state.\n");
+      continue;
+    }
+
     EventBits_t uxBits = xEventGroupWaitBits(
         button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT,
         pdTRUE,  /* Clear before returning. */
@@ -57,19 +67,11 @@ void app_main(void) {
         is_recording = true;
         xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
       } else if (state == RECORDING) {
-        state = POST_SAVE;
+        state = FINALISING;
         is_recording = false;
-        xSemaphoreTake(s_mutex, portMAX_DELAY); // Block until recording task finishes
-        esp_rom_printf("Saving data...\n");
-        ESP_ERROR_CHECK(wav_close());
       }
     } else if ((uxBits & POWER_BUTTON_BIT) != 0) {
       esp_rom_printf("Power pressed...\n");
-    }
-
-    if (state == POST_SAVE) {
-      esp_rom_printf("Data saved. Returning to IDLE state.\n");
-      state = IDLE;
     }
   }
 }
