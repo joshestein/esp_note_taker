@@ -79,12 +79,12 @@ static esp_err_t codec_init(void) {
   };
   const audio_codec_data_if_t *data_if = audio_codec_new_i2s_data(&i2s_cfg);
   ESP_RETURN_ON_FALSE(data_if, ESP_FAIL, TAG,
-                      "Failed to create I2C data interface");
+                      "Failed to create I2S data interface");
 
   /* Create ES8311 interface handle */
   const audio_codec_gpio_if_t *gpio_if = audio_codec_new_gpio();
   ESP_RETURN_ON_FALSE(gpio_if, ESP_FAIL, TAG,
-                      "Failed to create I2C GPIO interface");
+                      "Failed to create GPIO interface");
 
   es8311_codec_cfg_t es8311_cfg = {
       .ctrl_if = ctrl_if,
@@ -103,7 +103,7 @@ static esp_err_t codec_init(void) {
   };
   const audio_codec_if_t *es8311_if = es8311_codec_new(&es8311_cfg);
   ESP_RETURN_ON_FALSE(es8311_if, ESP_FAIL, TAG,
-                      "Failed to create I2C interface");
+                      "Failed to create ES8311 interface");
 
   /* Create the top codec handle with ES8311 interface handle and data interface
    */
