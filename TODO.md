@@ -4,7 +4,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## Recording flow (core)
 
-- [ ] Add LED GPIO to `config.h` (Recording Indicator) -- pick a free pin
+- [x] Add LED GPIO to `config.h` (Recording Indicator) -- pick a free pin
 - [x] Bring in SD support: lift `sdcard_bsp` (SDMMC 1-line, D0=40 CLK=39 CMD=41), mount `/sdcard` at boot, keep mounted in Idle
 - [x] Bring in codec support: lift `audio_bsp` (ES8311 via `esp_codec_dev`), configure **mono / 16kHz / 16-bit**
 - [ ] Confirm ADC high-pass filter (REG1B/1C) is enabled on the record path
@@ -17,10 +17,10 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## State machine (replace stub in `main.c`)
 
-- [ ] Idle -> Recording: LED on, codec on, open WAV, start record task
+- [x] Idle -> Recording: LED on, codec on, open WAV, start record task
 - [ ] Recording -> Finalizing: signal record task to patch header + close file
 - [ ] Finalizing: **drop** button presses (no queued restart), then -> Idle
-- [ ] Wire LED off on leaving Recording
+- [x] Wire LED off on leaving Recording
 - [x] Replace the fake 2s `vTaskDelay` "save" (`main.c:32-36`) with real Finalizing
 
 ## Reliability
