@@ -19,4 +19,6 @@
 #define MCLK_MULTIPLE 384
 #define PA_CTRL_PIN GPIO_NUM_46
 
+#define LED_PIN GPIO_NUM_3
+
 #endif
