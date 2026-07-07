@@ -63,7 +63,7 @@ void app_main(void) {
       ESP_LOGI(TAG, "Saving data...");
       xSemaphoreTake(s_mutex,
                      portMAX_DELAY); // Block until recording task finishes
-      gpio_set_level(LED_PIN, 0); // Turn LED off
+      gpio_set_level(LED_PIN, 1); // Turn LED off
       ESP_ERROR_CHECK(wav_close());
       state = IDLE;
       ESP_LOGI(TAG, "Data saved. Returning to IDLE state.");
@@ -82,7 +82,7 @@ void app_main(void) {
         state = RECORDING;
         ESP_ERROR_CHECK(wav_open("/sdcard/test.wav"));
         is_recording = true;
-        gpio_set_level(LED_PIN, 1); // Turn on LED to indicate recording
+        gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
         xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
       } else if (state == RECORDING) {
         state = FINALISING;
