@@ -25,7 +25,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 ## State machine (replace stub in `main.c`)
 
 - [x] Idle -> Recording: LED on, codec on, open WAV, start record task
-- [x] Recording -> Finalizing: `record_task` signals end via `CAPTURE_ENDED_BIT` (same event group as buttons; main can't wait on two groups). Unified exit: user stop, mid-record error, and malloc-fail all route through task-exit -> `CAPTURE_ENDED_BIT` -> FINALISING -> patch header + close (or delete). Record button while RECORDING just requests stop (`is_recording=false`); the task drives the transition
+- [x] Recording -> Finalizing: task signals end via `CAPTURE_ENDED_BIT`; unified exit for user-stop / mid-record error / alloc-fail. See ADR 0004
 - [x] Finalizing: **drop** button presses (no queued restart), then -> Idle
 - [x] Wire LED off on leaving Recording
 - [x] Replace the fake 2s `vTaskDelay` "save" (`main.c:32-36`) with real Finalizing
