@@ -8,7 +8,8 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] Bring in SD support: lift `sdcard_bsp` (SDMMC 1-line, D0=40 CLK=39 CMD=41), mount `/sdcard` at boot, keep mounted in Idle
 - [x] Bring in codec support: lift `audio_bsp` (ES8311 via `esp_codec_dev`), configure **mono / 16kHz / 16-bit**
 - [ ] Confirm ADC high-pass filter (REG1B/1C) is enabled on the record path
-- [ ] Gate codec power via `Audio_PWR_PIN` (GPIO42): off in Idle, on at record start
+- [ ] Power down the codec in Idle **in software** (`esp_codec_dev_close` on Capture stop, `esp_codec_dev_open` on record start) to stop mic-bias drain -- no board pin gates the codec supply (hardware-verified: `Audio_PWR_PIN` off still records). Split `audio_bsp`: one-time `init` (I2S + I2C bus + codec create) vs per-Capture `start`/`stop` (open/close). See ADR 0002
+  - `Audio_PWR_PIN` (GPIO42) gates only the **speaker amp** (PAVCC via Q6), **active-low** (LOW=on): leave off in Idle/record, on only for playback
 - [x] Dedicated record task (Model A): `esp_codec_dev_read` -> PSRAM buffer -> `fwrite`
 - [ ] PSRAM ring/double buffer between codec read and SD write (absorbs SD write stalls)
 - [x] WAV writer: placeholder 44-byte header on open, stream samples counting bytes, patch `RIFF`+`data` sizes on close
@@ -40,6 +41,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 ## Power management
 
 - [ ] Light sleep in Idle (per ADR 0001), GPIO wake on either button
+  - No `gpio_hold` plumbing needed for the audio-amp gate: light sleep auto-retains digital GPIO output state, so `Audio_PWR_PIN` (GPIO42) stays off through Idle on its own. (GPIO42 is not RTC-capable -- >21 -- so it couldn't be held or used as a wake source under deep sleep anyway; another point for light sleep. Wake pins GPIO0/GPIO18 are both RTC-capable.)
 
 ## Open design decisions
 
@@ -57,7 +59,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] Battery glyph on Idle screen (read `VBAT_PWR_PIN` GPIO17) -- not a menu card
 - [ ] Power-off/sleep gesture: long-press Menu from Idle
 - [ ] Recordings card: step Captures newest-first, Record btn = play through speaker (power codec on for playback)
-- [ ] Playback path: `esp_codec_dev_write` via `audio_bsp`, PA GPIO46
+- [ ] Playback path: `esp_codec_dev_write` via `audio_bsp`. Power the speaker amp on first: `Audio_PWR_PIN` (GPIO42) LOW; the codec driver drives PA_CTRL (GPIO46) enable itself. Amp back off after playback
 - [ ] Storage card: free space, # Captures, erase-synced action
 
 ## Sync (device side; companion is a separate repo)
