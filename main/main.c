@@ -96,7 +96,8 @@ void app_main(void) {
 
       esp_err_t close_err = wav_close();
       if (close_err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to close WAV file: %s", esp_err_to_name(close_err));
+        ESP_LOGE(TAG, "Failed to close WAV file: %s",
+                 esp_err_to_name(close_err));
       }
 
       if (capture_ok) {
@@ -130,7 +131,19 @@ void app_main(void) {
         is_recording = true;
         capture_ok = false;
         gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
-        xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
+        BaseType_t task_create_err =
+            xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
+
+        if (task_create_err != pdPASS) {
+          // If task creation fails, clean up and reset state
+          ESP_LOGE(TAG, "Failed to create record task");
+          wav_close();
+          remove(path);
+          is_recording = false;
+          gpio_set_level(LED_PIN, 1); // Turn off LED
+          --note_counter;
+          state = IDLE;
+        }
       } else if (state == RECORDING) {
         is_recording = false;
       }
