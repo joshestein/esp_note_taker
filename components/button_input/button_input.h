@@ -6,6 +6,7 @@
 
 #define RECORD_BUTTON_BIT (1 << 0)
 #define POWER_BUTTON_BIT (1 << 1)
+#define CAPTURE_ENDED_BIT (1 << 2) // not set by a button, used by the recording task when it finishes
 
 EventGroupHandle_t button_init(void);
 
