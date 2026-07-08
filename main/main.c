@@ -40,7 +40,13 @@ static void record_task(void *arg) {
 
   if (buffer != NULL) {
     bool audio_record_result = true;
-    audio_bsp_record_start();
+    esp_err_t record_start_err = audio_bsp_record_start();
+    if (record_start_err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to start audio recording: %s",
+               esp_err_to_name(record_start_err));
+      audio_record_result = false;
+    }
+
     while (is_recording) {
       esp_err_t audio_err = audio_bsp_record(buffer, buffer_size);
       if (audio_err != ESP_OK) {
