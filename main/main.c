@@ -95,7 +95,10 @@ void app_main(void) {
                      portMAX_DELAY); // Block until recording task finishes
       gpio_set_level(LED_PIN, 1);    // Turn LED off
 
-      ESP_ERROR_CHECK(wav_close());
+      esp_err_t close_err = wav_close();
+      if (close_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to close WAV file: %s", esp_err_to_name(close_err));
+      }
 
       if (capture_ok) {
         ESP_LOGI(TAG, "Data saved successfully. Saved to %s", path);
