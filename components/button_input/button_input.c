@@ -1,6 +1,7 @@
 #include "button_input.h"
 #include "button_gpio.h"
 #include "config.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "iot_button.h"
 #include <stdint.h>
@@ -12,8 +13,9 @@ static void button_single_click_cb(void *arg, void *usr_data) {
   xEventGroupSetBits(button_group, bit_num);
 }
 
-EventGroupHandle_t button_init(void) {
+esp_err_t button_init(EventGroupHandle_t *out_button_group) {
   button_group = xEventGroupCreate();
+  if (button_group == NULL) return ESP_ERR_NO_MEM;
 
   const button_config_t menu_btn_cfg = {0};
   const button_gpio_config_t menu_btn_gpio_cfg = {
@@ -26,7 +28,7 @@ EventGroupHandle_t button_init(void) {
                                              &menu_gpio_btn);
   if (ret != ESP_OK) {
     ESP_LOGE("BUTTON", "Menu button create failed: %s", esp_err_to_name(ret));
-    return button_group;
+    return ret;
   }
 
   iot_button_register_cb(menu_gpio_btn, BUTTON_SINGLE_CLICK, NULL,
@@ -43,11 +45,12 @@ EventGroupHandle_t button_init(void) {
                                    &power_gpio_btn);
   if (ret != ESP_OK) {
     ESP_LOGE("BUTTON", "Power button create failed: %s", esp_err_to_name(ret));
-    return button_group;
+    return ret;
   }
 
   iot_button_register_cb(power_gpio_btn, BUTTON_SINGLE_CLICK, NULL,
                          button_single_click_cb, (void *)POWER_BUTTON_BIT);
 
-  return button_group;
+  *out_button_group = button_group;
+  return ESP_OK;
 }

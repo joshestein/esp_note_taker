@@ -74,8 +74,7 @@ static void record_task(void *arg) {
 
 void app_main(void) {
   app_state_t state = IDLE;
-  button_group = button_init();
-
+  ESP_ERROR_CHECK(button_init(&button_group));
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
   ESP_ERROR_CHECK(audio_bsp_init());
