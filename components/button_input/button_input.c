@@ -24,8 +24,8 @@ EventGroupHandle_t button_init(void) {
   button_handle_t menu_gpio_btn = NULL;
   esp_err_t ret = iot_button_new_gpio_device(&menu_btn_cfg, &menu_btn_gpio_cfg,
                                              &menu_gpio_btn);
-  if (menu_gpio_btn == NULL) {
-    ESP_LOGE("BUTTON", "Menu button create failed");
+  if (ret != ESP_OK) {
+    ESP_LOGE("BUTTON", "Menu button create failed: %s", esp_err_to_name(ret));
     return button_group;
   }
 
@@ -41,8 +41,8 @@ EventGroupHandle_t button_init(void) {
   button_handle_t power_gpio_btn = NULL;
   ret = iot_button_new_gpio_device(&power_btn_cfg, &power_btn_gpio_cfg,
                                    &power_gpio_btn);
-  if (power_gpio_btn == NULL) {
-    ESP_LOGE("BUTTON", "Power button create failed");
+  if (ret != ESP_OK) {
+    ESP_LOGE("BUTTON", "Power button create failed: %s", esp_err_to_name(ret));
     return button_group;
   }
 
