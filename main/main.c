@@ -83,7 +83,15 @@ void app_main(void) {
   gpio_set_level(LED_PIN, 1); // LED starts off
 
   for (;;) {
-    if (state == FINALISING) {
+    EventBits_t uxBits = xEventGroupWaitBits(
+        button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT | CAPTURE_ENDED_BIT,
+        pdTRUE,  /* Clear before returning. */
+        pdFALSE, /* Don't wait for both bits, either bit will do. */
+        portMAX_DELAY);
+
+    if ((uxBits & CAPTURE_ENDED_BIT) && (state == RECORDING)) {
+      is_recording = false;
+
       ESP_LOGI(TAG, "Saving data...");
       gpio_set_level(LED_PIN, 1);    // Turn LED off
 
@@ -101,19 +109,6 @@ void app_main(void) {
       }
 
       state = IDLE;
-      continue;
-    }
-
-    EventBits_t uxBits = xEventGroupWaitBits(
-        button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT | CAPTURE_ENDED_BIT,
-        pdTRUE,  /* Clear before returning. */
-        pdFALSE, /* Don't wait for both bits, either bit will do. */
-        portMAX_DELAY);
-
-    if ((uxBits & CAPTURE_ENDED_BIT) && (state == RECORDING)) {
-      ESP_LOGI(TAG, "Recording ended");
-      state = FINALISING;
-      is_recording = false;
     } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Boot button pressed");
       if (state == IDLE) {
