@@ -19,6 +19,7 @@ typedef enum {
 
 static volatile bool is_recording = false;
 static SemaphoreHandle_t s_mutex = NULL;
+static char path[32];
 
 static void init_led(void) {
   gpio_config_t io_conf = {
@@ -96,7 +97,6 @@ void app_main(void) {
       if (state == IDLE) {
         state = RECORDING;
         ++note_counter;
-        char path[32];
         snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter);
         ESP_ERROR_CHECK(wav_open(path));
         is_recording = true;
