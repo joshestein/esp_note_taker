@@ -8,12 +8,12 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] Bring in SD support: lift `sdcard_bsp` (SDMMC 1-line, D0=40 CLK=39 CMD=41), mount `/sdcard` at boot, keep mounted in Idle
 - [x] Bring in codec support: lift `audio_bsp` (ES8311 via `esp_codec_dev`), configure **mono / 16kHz / 16-bit**
 - [ ] Confirm ADC high-pass filter (REG1B/1C) is enabled on the record path
-- [ ] Power down the codec in Idle **in software** (`esp_codec_dev_close` on Capture stop, `esp_codec_dev_open` on record start) to stop mic-bias drain -- no board pin gates the codec supply (hardware-verified: `Audio_PWR_PIN` off still records). Split `audio_bsp`: one-time `init` (I2S + I2C bus + codec create) vs per-Capture `start`/`stop` (open/close). See ADR 0002
+- [x] Power down the codec in Idle **in software** (`esp_codec_dev_close` on Capture stop, `esp_codec_dev_open` on record start) to stop mic-bias drain -- no board pin gates the codec supply (hardware-verified: `Audio_PWR_PIN` off still records). Split `audio_bsp` done: one-time `init` (I2S + I2C bus + codec create) vs per-Capture `record_start`/`record_stop` (open/close). `open`/`close` own the I2S channel enable/disable (redundant manual enable removed). `start`/`stop` called from inside `record_task` so the codec has a single owner (no read-after-close race). See ADR 0002
   - `Audio_PWR_PIN` (GPIO42) gates only the **speaker amp** (PAVCC via Q6), **active-low** (LOW=on): leave off in Idle/record, on only for playback
 - [x] Dedicated record task (Model A): `esp_codec_dev_read` -> PSRAM buffer -> `fwrite`
 - [ ] PSRAM ring/double buffer between codec read and SD write (absorbs SD write stalls)
 - [x] WAV writer: placeholder 44-byte header on open, stream samples counting bytes, patch `RIFF`+`data` sizes on close
-- [ ] Filename from monotonic sequence (v1): `note_NNNN.wav`, 4-digit zero-pad, assigned at Capture start
+- [x] Filename from monotonic sequence (v1): `note_NNNN.wav`, 4-digit zero-pad, assigned at Capture start
   - Source: scan `/sdcard` **once at mount** (boot / card insert) for the highest existing `note_NNNN`, cache max in RAM; each Capture uses `max+1` and bumps the RAM value. No NVS.
   - No per-record scan -> zero added latency on the light-sleep wake-to-record path (SD stays mounted through Idle)
   - Card swap self-heals: remount rescans, so the number is always derived from the card actually present (no cross-card clobber)
@@ -25,8 +25,8 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 ## State machine (replace stub in `main.c`)
 
 - [x] Idle -> Recording: LED on, codec on, open WAV, start record task
-- [ ] Recording -> Finalizing: signal record task to patch header + close file
-- [ ] Finalizing: **drop** button presses (no queued restart), then -> Idle
+- [x] Recording -> Finalizing: `record_task` signals end via `CAPTURE_ENDED_BIT` (same event group as buttons; main can't wait on two groups). Unified exit: user stop, mid-record error, and malloc-fail all route through task-exit -> `CAPTURE_ENDED_BIT` -> FINALISING -> patch header + close (or delete). Record button while RECORDING just requests stop (`is_recording=false`); the task drives the transition
+- [x] Finalizing: **drop** button presses (no queued restart), then -> Idle
 - [x] Wire LED off on leaving Recording
 - [x] Replace the fake 2s `vTaskDelay` "save" (`main.c:32-36`) with real Finalizing
 
