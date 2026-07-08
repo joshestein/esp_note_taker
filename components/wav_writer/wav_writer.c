@@ -37,6 +37,8 @@ esp_err_t wav_open(const char *path) {
 }
 
 esp_err_t wav_write(const void *data, size_t len) {
+    if (wav_file == NULL) return ESP_ERR_INVALID_STATE;
+
     size_t bytes_attempted_written = fwrite(data, 1, len, wav_file);
     if (bytes_attempted_written != len) {
         return ESP_FAIL;
@@ -47,6 +49,8 @@ esp_err_t wav_write(const void *data, size_t len) {
 }
 
 esp_err_t wav_close(void) {
+    if (wav_file == NULL) return ESP_ERR_INVALID_STATE;
+
     fseek(wav_file, 4, SEEK_SET);
     // Total file size - 8 bytes (RIFF header and size field) = 44 - 8 + bytes_written = 36 + bytes_written
     uint32_t chunk_size = 36 + bytes_written;
