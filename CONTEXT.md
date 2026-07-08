@@ -16,7 +16,7 @@ A mode, mutually exclusive with recording -- you cannot start a Capture while in
 The navigation model for the Menu: exactly one item is shown on screen at a time, and the Menu Button steps to the next one. Chosen over a scrolling multi-item list because the e-paper display refreshes slowly and only a single card region needs repainting per step.
 
 ## Recordings (menu card)
-The Menu card that lists existing Captures newest-first (sequence filenames sort naturally), stepped one at a time. The Record Button plays the shown Capture through the speaker; playback uses the same ES8311 codec, so it must be powered on for playback as it is for recording.
+The Menu card that lists existing Captures newest-first (sequence filenames sort naturally), stepped one at a time. The Record Button plays the shown Capture through the speaker; playback uses the same ES8311 codec (re-opened as for recording) plus the speaker amplifier, whose power (`Audio_PWR_PIN`, GPIO42) is switched on only for playback.
 
 ## Sync (menu card)
 The Menu card that connects to Wi-Fi and pushes Captures to a paired computer on the same LAN, which runs the AI transcription and keeps the files (see ADR 0003). Transcription runs off-device (too large for the ESP32-S3). Correct RTC time is obtained here via NTP rather than a manual time-setting UI. Design is in progress.
@@ -43,7 +43,7 @@ The Menu card showing card status: free space and number of Captures, and possib
 Battery level is shown as an always-visible glyph on the Idle screen (read via `VBAT_PWR_PIN`, GPIO17), not as a Menu card -- battery status is wanted at a glance, not buried in navigation.
 
 ## Idle
-The device state when no Capture is in progress. The CPU is in light sleep; GPIO interrupts from either button trigger immediate wake. The e-paper display retains the last drawn image without power. The audio codec is powered off (via `Audio_PWR_PIN`) to save battery; the SD card stays mounted for fast record start.
+The device state when no Capture is in progress. The CPU is in light sleep; GPIO interrupts from either button trigger immediate wake. The e-paper display retains the last drawn image without power. The audio codec is powered down in Idle to stop its mic-bias drain -- no board pin gates the codec's supply, so this is a **software** power-down (the codec is closed on entering Idle and re-opened at record start), not a rail cut. `Audio_PWR_PIN` (GPIO42) gates only the speaker amplifier and stays off except during playback. The SD card stays mounted for fast record start.
 
 ## Recording State
 The device state during an active Capture. Audio is read from the codec and written in chunks to an open WAV file on the SD card. Recording is naive: every sample is kept from the moment capture starts, including the codec's power-on transient (an audible pop at the start of each file), which is accepted rather than detected or discarded. The codec's ADC high-pass filter is left enabled to DC-correct in hardware and soften that pop without dropping samples. (This is separate from the 2-second minimum-Capture rule under **Capture**, which discards a whole short Capture, not samples within one.)
