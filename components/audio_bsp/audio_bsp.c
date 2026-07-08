@@ -1,10 +1,12 @@
 #include "audio_bsp.h"
 #include "config.h"
 #include "driver/i2c_master.h"
+#include "driver/i2s_common.h"
 #include "driver/i2s_std.h"
 #include "esp_check.h"
 #include "esp_codec_dev.h"
 #include "esp_codec_dev_defaults.h"
+#include "esp_codec_dev_types.h"
 #include "esp_err.h"
 
 #define VOICE_VOLUME 80
@@ -42,8 +44,6 @@ static esp_err_t i2s_driver_init(void) {
 
   ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
   ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle, &std_cfg));
-  ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
-  ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
   return ESP_OK;
 }
 
@@ -115,7 +115,16 @@ static esp_err_t codec_init(void) {
   codec_handle = esp_codec_dev_new(&dev_cfg);
   ESP_RETURN_ON_FALSE(codec_handle, ESP_FAIL, TAG,
                       "Failed to create codec handle");
+  return ESP_OK;
+}
 
+esp_err_t audio_bsp_init(void) {
+  ESP_ERROR_CHECK(i2s_driver_init());
+  ESP_ERROR_CHECK(codec_init());
+  return ESP_OK;
+}
+
+esp_err_t audio_bsp_record_start(void) {
   /* Specify the sample configurations and open the device */
   esp_codec_dev_sample_info_t sample_cfg = {
       .bits_per_sample = I2S_DATA_BIT_WIDTH_16BIT,
@@ -133,12 +142,10 @@ static esp_err_t codec_init(void) {
   return ESP_OK;
 }
 
-esp_err_t audio_bsp_init(void) {
-  ESP_ERROR_CHECK(i2s_driver_init());
-  ESP_ERROR_CHECK(codec_init());
-  return ESP_OK;
-}
-
 esp_err_t audio_bsp_record(void *data, size_t len) {
   return (esp_err_t)esp_codec_dev_read(codec_handle, data, len);
+}
+
+esp_err_t audio_bsp_record_stop(void) {
+  return (esp_err_t)esp_codec_dev_close(codec_handle);
 }
