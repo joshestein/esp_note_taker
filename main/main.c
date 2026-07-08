@@ -57,7 +57,8 @@ static void record_task(void *arg) {
 
     esp_err_t write_err = wav_write(buffer, buffer_size);
     if (write_err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to write to WAV file: %s", esp_err_to_name(write_err));
+      ESP_LOGE(TAG, "Failed to write to WAV file: %s",
+               esp_err_to_name(write_err));
       audio_record_result = false;
       break;
     }
