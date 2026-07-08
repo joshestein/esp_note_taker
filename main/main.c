@@ -43,16 +43,25 @@ static void record_task(void *arg) {
     return;
   }
 
+  bool audio_record_result = true;
   audio_bsp_record_start();
   while (is_recording) {
-    ESP_ERROR_CHECK(audio_bsp_record(buffer, buffer_size));
+    esp_err_t audio_err = audio_bsp_record(buffer, buffer_size);
+    if (audio_err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to record audio: %s", esp_err_to_name(audio_err));
+      audio_record_result = false;
+      break;
+    }
+
     esp_err_t write_err = wav_write(buffer, buffer_size);
     if (write_err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to write to WAV file: %s", esp_err_to_name(write_err));
+      audio_record_result = false;
       break;
     }
   }
   audio_bsp_record_stop();
+  capture_ok = audio_record_result;
 
   free(buffer);
   xSemaphoreGive(s_mutex);
@@ -81,9 +90,16 @@ void app_main(void) {
       xSemaphoreTake(s_mutex,
                      portMAX_DELAY); // Block until recording task finishes
       gpio_set_level(LED_PIN, 1);    // Turn LED off
-      ESP_ERROR_CHECK(wav_close());
+
+      if (capture_ok) {
+        ESP_LOGI(TAG, "Data saved successfully. Saving to %s", path);
+        ESP_ERROR_CHECK(wav_close());
+      } else {
+        ESP_LOGW(TAG, "Capture failed. Deleting file %s", path);
+        remove(path);
+      }
+
       state = IDLE;
-      ESP_LOGI(TAG, "Data saved. Returning to IDLE state.");
       continue;
     }
 
@@ -101,6 +117,7 @@ void app_main(void) {
         snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter);
         ESP_ERROR_CHECK(wav_open(path));
         is_recording = true;
+        capture_ok = false;
         gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
         xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
       } else if (state == RECORDING) {
