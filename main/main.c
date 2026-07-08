@@ -44,7 +44,11 @@ static void record_task(void *arg) {
   audio_bsp_record_start();
   while (is_recording) {
     ESP_ERROR_CHECK(audio_bsp_record(buffer, buffer_size));
-    ESP_ERROR_CHECK(wav_write(buffer, buffer_size));
+    esp_err_t write_err = wav_write(buffer, buffer_size);
+    if (write_err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to write to WAV file: %s", esp_err_to_name(write_err));
+      break;
+    }
   }
   audio_bsp_record_stop();
 
