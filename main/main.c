@@ -40,6 +40,7 @@ static void record_task(void *arg) {
   if (buffer == NULL) {
     ESP_LOGE(TAG, "Failed to allocate buffer for recording");
     xSemaphoreGive(s_mutex);
+    xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
     vTaskDelete(NULL);
     return;
   }
@@ -106,12 +107,16 @@ void app_main(void) {
     }
 
     EventBits_t uxBits = xEventGroupWaitBits(
-        button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT,
+        button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT | CAPTURE_ENDED_BIT,
         pdTRUE,  /* Clear before returning. */
         pdFALSE, /* Don't wait for both bits, either bit will do. */
         portMAX_DELAY);
 
-    if ((uxBits & RECORD_BUTTON_BIT) != 0) {
+    if ((uxBits & CAPTURE_ENDED_BIT) && (state == RECORDING)) {
+      ESP_LOGI(TAG, "Recording ended");
+      state = FINALISING;
+      is_recording = false;
+    } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Boot button pressed");
       if (state == IDLE) {
         state = RECORDING;
@@ -123,7 +128,6 @@ void app_main(void) {
         gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
         xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
       } else if (state == RECORDING) {
-        state = FINALISING;
         is_recording = false;
       }
     } else if ((uxBits & POWER_BUTTON_BIT) != 0) {
