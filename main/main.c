@@ -61,7 +61,12 @@ void app_main(void) {
   ESP_ERROR_CHECK(audio_bsp_init());
   init_led();
   gpio_set_level(LED_PIN, 1); // LED starts off
+
   s_mutex = xSemaphoreCreateBinary();
+  if (s_mutex == NULL) {
+    ESP_LOGE(TAG, "Failed to create mutex");
+    abort();
+  }
 
   for (;;) {
     if (state == FINALISING) {
