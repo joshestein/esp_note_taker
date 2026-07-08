@@ -37,36 +37,32 @@ static void init_led(void) {
 static void record_task(void *arg) {
   const size_t buffer_size = 1024;
   uint8_t *buffer = malloc(buffer_size);
-  if (buffer == NULL) {
-    ESP_LOGE(TAG, "Failed to allocate buffer for recording");
-    xSemaphoreGive(s_mutex);
-    xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
-    vTaskDelete(NULL);
-    return;
+
+  if (buffer != NULL) {
+    bool audio_record_result = true;
+    audio_bsp_record_start();
+    while (is_recording) {
+      esp_err_t audio_err = audio_bsp_record(buffer, buffer_size);
+      if (audio_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to record audio: %s", esp_err_to_name(audio_err));
+        audio_record_result = false;
+        break;
+      }
+
+      esp_err_t write_err = wav_write(buffer, buffer_size);
+      if (write_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write to WAV file: %s",
+                 esp_err_to_name(write_err));
+        audio_record_result = false;
+        break;
+      }
+    }
+    audio_bsp_record_stop();
+    capture_ok = audio_record_result;
+
+    free(buffer);
   }
 
-  bool audio_record_result = true;
-  audio_bsp_record_start();
-  while (is_recording) {
-    esp_err_t audio_err = audio_bsp_record(buffer, buffer_size);
-    if (audio_err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to record audio: %s", esp_err_to_name(audio_err));
-      audio_record_result = false;
-      break;
-    }
-
-    esp_err_t write_err = wav_write(buffer, buffer_size);
-    if (write_err != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to write to WAV file: %s",
-               esp_err_to_name(write_err));
-      audio_record_result = false;
-      break;
-    }
-  }
-  audio_bsp_record_stop();
-  capture_ok = audio_record_result;
-
-  free(buffer);
   xSemaphoreGive(s_mutex);
   xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
   vTaskDelete(NULL);
