@@ -33,6 +33,13 @@ esp_err_t wav_open(const char *path) {
   fwrite(&bits, 1, 2, wav_file);
   fwrite("data", 1, 4, wav_file);
   fwrite(&placeholder, 1, 4, wav_file); // Placeholder for Subchunk2Size
+
+  if (ferror(wav_file)) {
+    fclose(wav_file);
+    wav_file = NULL;
+    return ESP_FAIL;
+  }
+
   return ESP_OK;
 }
 
