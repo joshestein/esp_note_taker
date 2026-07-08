@@ -59,7 +59,7 @@ int sdcard_scan_max(void) {
   return max;
 }
 
-float sdcard_GetValue(void) {
+float sdcard_get_value(void) {
   if (card_host != NULL) {
     return (float)(card_host->csd.capacity) / 2048 / 1024; // G
   } else

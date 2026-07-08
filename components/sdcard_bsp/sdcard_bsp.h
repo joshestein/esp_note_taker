@@ -5,6 +5,6 @@
 
 esp_err_t sdcard_init(void);
 int sdcard_scan_max(void);
-float sdcard_GetValue(void);
+float sdcard_get_value(void);
 
 #endif
