@@ -18,6 +18,7 @@ typedef enum {
 } app_state_t;
 
 static volatile bool is_recording = false;
+static volatile bool capture_ok = false;
 static SemaphoreHandle_t s_mutex = NULL;
 static char path[32];
 
