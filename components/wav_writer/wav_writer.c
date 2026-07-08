@@ -5,7 +5,7 @@
 static FILE *wav_file = NULL;
 static uint32_t bytes_written = 0;
 
-static const uint16_t bits = 16; // Bits per sample
+static const uint16_t bits = 16;        // Bits per sample
 static const uint16_t num_channels = 1; // Mono
 static const uint32_t sample_rate = 16000;
 static const uint32_t byte_rate = sample_rate * bits * num_channels / 8;
@@ -44,37 +44,40 @@ esp_err_t wav_open(const char *path) {
 }
 
 esp_err_t wav_write(const void *data, size_t len) {
-    if (wav_file == NULL) return ESP_ERR_INVALID_STATE;
+  if (wav_file == NULL)
+    return ESP_ERR_INVALID_STATE;
 
-    size_t bytes_attempted_written = fwrite(data, 1, len, wav_file);
-    if (bytes_attempted_written != len) {
-        return ESP_FAIL;
-    }
+  size_t bytes_attempted_written = fwrite(data, 1, len, wav_file);
+  if (bytes_attempted_written != len) {
+    return ESP_FAIL;
+  }
 
-    bytes_written += len;
-    return ESP_OK;
+  bytes_written += len;
+  return ESP_OK;
 }
 
 esp_err_t wav_close(void) {
-    if (wav_file == NULL) return ESP_ERR_INVALID_STATE;
+  if (wav_file == NULL)
+    return ESP_ERR_INVALID_STATE;
 
-    fseek(wav_file, 4, SEEK_SET);
-    // Total file size - 8 bytes (RIFF header and size field) = 44 - 8 + bytes_written = 36 + bytes_written
-    uint32_t chunk_size = 36 + bytes_written;
-    fwrite(&chunk_size, 1, 4, wav_file);
+  fseek(wav_file, 4, SEEK_SET);
+  // Total file size - 8 bytes (RIFF header and size field) = 44 - 8 +
+  // bytes_written = 36 + bytes_written
+  uint32_t chunk_size = 36 + bytes_written;
+  fwrite(&chunk_size, 1, 4, wav_file);
 
-    // Total data size = bytes_written
-    fseek(wav_file, 40, SEEK_SET);
-    fwrite(&bytes_written, 1, 4, wav_file);
+  // Total data size = bytes_written
+  fseek(wav_file, 40, SEEK_SET);
+  fwrite(&bytes_written, 1, 4, wav_file);
 
-    bool ok = (ferror(wav_file) == 0);
-    if (fclose(wav_file) != 0) {
-        ok = false;
-    }
+  bool ok = (ferror(wav_file) == 0);
+  if (fclose(wav_file) != 0) {
+    ok = false;
+  }
 
-    // Reset for next file
-    wav_file = NULL;
-    bytes_written = 0;
+  // Reset for next file
+  wav_file = NULL;
+  bytes_written = 0;
 
-    return ok ? ESP_OK : ESP_FAIL;
+  return ok ? ESP_OK : ESP_FAIL;
 }
