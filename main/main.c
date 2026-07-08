@@ -21,6 +21,7 @@ static volatile bool is_recording = false;
 static volatile bool capture_ok = false;
 static SemaphoreHandle_t s_mutex = NULL;
 static char path[32];
+static EventGroupHandle_t button_group;
 
 static void init_led(void) {
   gpio_config_t io_conf = {
@@ -65,12 +66,13 @@ static void record_task(void *arg) {
 
   free(buffer);
   xSemaphoreGive(s_mutex);
+  xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
   vTaskDelete(NULL);
 }
 
 void app_main(void) {
   app_state_t state = IDLE;
-  EventGroupHandle_t button_group = button_init();
+  button_group = button_init();
 
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
