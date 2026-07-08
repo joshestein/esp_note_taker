@@ -67,11 +67,14 @@ esp_err_t wav_close(void) {
     fseek(wav_file, 40, SEEK_SET);
     fwrite(&bytes_written, 1, 4, wav_file);
 
-    fclose(wav_file);
+    bool ok = (ferror(wav_file) == 0);
+    if (fclose(wav_file) != 0) {
+        ok = false;
+    }
 
     // Reset for next file
     wav_file = NULL;
     bytes_written = 0;
 
-    return ESP_OK;
+    return ok ? ESP_OK : ESP_FAIL;
 }
