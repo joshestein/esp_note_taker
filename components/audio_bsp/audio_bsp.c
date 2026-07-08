@@ -119,8 +119,8 @@ static esp_err_t codec_init(void) {
   /* Specify the sample configurations and open the device */
   esp_codec_dev_sample_info_t sample_cfg = {
       .bits_per_sample = I2S_DATA_BIT_WIDTH_16BIT,
-      .channel = 2,
-      .channel_mask = 0x03,
+      .channel = 1,
+      .channel_mask = 0x01,
       .sample_rate = SAMPLE_RATE,
       .mclk_multiple = MCLK_MULTIPLE,
   };
