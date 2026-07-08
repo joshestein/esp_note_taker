@@ -40,10 +40,12 @@ static void record_task(void *arg) {
     return;
   }
 
+  audio_bsp_record_start();
   while (is_recording) {
     ESP_ERROR_CHECK(audio_bsp_record(buffer, buffer_size));
     ESP_ERROR_CHECK(wav_write(buffer, buffer_size));
   }
+  audio_bsp_record_stop();
 
   free(buffer);
   xSemaphoreGive(s_mutex);
