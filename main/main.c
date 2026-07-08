@@ -36,6 +36,7 @@ static void record_task(void *arg) {
   uint8_t *buffer = malloc(buffer_size);
   if (buffer == NULL) {
     ESP_LOGE(TAG, "Failed to allocate buffer for recording");
+    xSemaphoreGive(s_mutex);
     vTaskDelete(NULL);
     return;
   }
