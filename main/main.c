@@ -19,7 +19,6 @@ typedef enum {
 
 static volatile bool is_recording = false;
 static volatile bool capture_ok = false;
-static SemaphoreHandle_t s_mutex = NULL;
 static char path[32];
 static EventGroupHandle_t button_group;
 
@@ -69,7 +68,7 @@ static void record_task(void *arg) {
     free(buffer);
   }
 
-  xSemaphoreGive(s_mutex);
+  // This must be the last thing we do in this task, because the main task is waiting for this bit to be set before it can proceed to finalise the recording.
   xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
   vTaskDelete(NULL);
 }
@@ -83,17 +82,9 @@ void app_main(void) {
   init_led();
   gpio_set_level(LED_PIN, 1); // LED starts off
 
-  s_mutex = xSemaphoreCreateBinary();
-  if (s_mutex == NULL) {
-    ESP_LOGE(TAG, "Failed to create mutex");
-    abort();
-  }
-
   for (;;) {
     if (state == FINALISING) {
       ESP_LOGI(TAG, "Saving data...");
-      xSemaphoreTake(s_mutex,
-                     portMAX_DELAY); // Block until recording task finishes
       gpio_set_level(LED_PIN, 1);    // Turn LED off
 
       esp_err_t close_err = wav_close();
