@@ -63,6 +63,9 @@ A Capture has no fixed time limit; it runs until the wearer presses Record again
 ## Recording Indicator
 An LED held steady for the full duration of a Capture, off otherwise. Lets the wearer confirm a session is active without close inspection. Chosen over haptic/audio cues for low power and simplicity.
 
+## Recording Screen
+The e-paper image shown for the full duration of a Capture: a filled circle glyph plus the word "recording". Distinct from the **Recording Indicator** (the LED) -- same meaning, different surface, painted once on entering the **Recording State** and replaced on return to **Idle**.
+
 ## Error Indication
 A distinct LED pattern (e.g. blinking, unlike the steady Recording Indicator) signalling a failure the wearer must act on: no SD card at record start, card full, or card removed mid-Capture. The record task aborts to Finalizing (or straight to Idle if the card is gone) on any `fwrite` failure and raises this indication.
 
