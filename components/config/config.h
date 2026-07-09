@@ -1,6 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #include "driver/gpio.h"
+#include "driver/spi_common.h"
 
 #define RECORD_BUTTON GPIO_NUM_0
 #define POWER_BUTTON GPIO_NUM_18
@@ -20,5 +21,18 @@
 #define PA_CTRL_PIN GPIO_NUM_46
 
 #define LED_PIN GPIO_NUM_3
+
+// E-paper display (Waveshare ESP32-S3-Touch-ePaper-1.54, SSD1681)
+#define EPD_CS_PIN GPIO_NUM_11
+#define EPD_DC_PIN GPIO_NUM_10
+#define EPD_SCK_PIN GPIO_NUM_12
+#define EPD_MOSI_PIN GPIO_NUM_13
+#define EPD_RST_PIN GPIO_NUM_9
+#define EPD_BUSY_PIN GPIO_NUM_8
+#define EPD_PWR_PIN GPIO_NUM_6 // panel power gate, active-low (LOW = on)
+#define EPD_SPI_NUM SPI2_HOST
+#define EPD_WIDTH 200
+#define EPD_HEIGHT 200
+#define EPD_BUFFER_LEN 5000 // 200*200/8, 1bpp
 
 #endif
