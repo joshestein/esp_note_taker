@@ -123,9 +123,6 @@ void app_main(void) {
         }
 
         state = RECORDING;
-        ++note_counter;
-        snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter);
-        ESP_ERROR_CHECK(wav_open(path));
         is_recording = true;
         capture_ok = false;
         gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
@@ -139,8 +136,9 @@ void app_main(void) {
           remove(path);
           is_recording = false;
           gpio_set_level(LED_PIN, 1); // Turn off LED
-          --note_counter;
           state = IDLE;
+        } else {
+          ++note_counter;
         }
       } else if (state == RECORDING) {
         is_recording = false;
