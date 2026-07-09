@@ -68,7 +68,9 @@ static void record_task(void *arg) {
     free(buffer);
   }
 
-  // This must be the last thing we do in this task, because the main task is waiting for this bit to be set before it can proceed to finalise the recording.
+  // This must be the last thing we do in this task, because the main task is
+  // waiting for this bit to be set before it can proceed to finalise the
+  // recording.
   xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
   vTaskDelete(NULL);
 }
@@ -93,7 +95,7 @@ void app_main(void) {
       is_recording = false;
 
       ESP_LOGI(TAG, "Saving data...");
-      gpio_set_level(LED_PIN, 1);    // Turn LED off
+      gpio_set_level(LED_PIN, 1); // Turn LED off
 
       esp_err_t close_err = wav_close();
       if (close_err != ESP_OK) {
