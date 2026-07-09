@@ -114,6 +114,14 @@ void app_main(void) {
     } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Boot button pressed");
       if (state == IDLE) {
+        snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter + 1);
+        esp_err_t open_err = wav_open(path);
+        if (open_err != ESP_OK) {
+          ESP_LOGE(TAG, "Failed to open WAV file: %s",
+                   esp_err_to_name(open_err));
+          continue;
+        }
+
         state = RECORDING;
         ++note_counter;
         snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter);
