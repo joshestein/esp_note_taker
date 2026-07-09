@@ -7,7 +7,6 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] Add LED GPIO to `config.h` (Recording Indicator) -- pick a free pin
 - [x] Bring in SD support: lift `sdcard_bsp` (SDMMC 1-line, D0=40 CLK=39 CMD=41), mount `/sdcard` at boot, keep mounted in Idle
 - [x] Bring in codec support: lift `audio_bsp` (ES8311 via `esp_codec_dev`), configure **mono / 16kHz / 16-bit**
-- [ ] Confirm ADC high-pass filter (REG1B/1C) is enabled on the record path
 - [x] Power down the codec in Idle **in software** (`esp_codec_dev_close` on Capture stop, `esp_codec_dev_open` on record start) to stop mic-bias drain -- no board pin gates the codec supply (hardware-verified: `Audio_PWR_PIN` off still records). Split `audio_bsp` done: one-time `init` (I2S + I2C bus + codec create) vs per-Capture `record_start`/`record_stop` (open/close). `open`/`close` own the I2S channel enable/disable (redundant manual enable removed). `start`/`stop` called from inside `record_task` so the codec has a single owner (no read-after-close race). See ADR 0002
   - `Audio_PWR_PIN` (GPIO42) gates only the **speaker amp** (PAVCC via Q6), **active-low** (LOW=on): leave off in Idle/record, on only for playback
 - [x] Dedicated record task (Model A): `esp_codec_dev_read` -> PSRAM buffer -> `fwrite`
@@ -20,7 +19,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
   - Discarded (<2s) Capture: number already consumed, leaves a gap -- harmless, sort still holds
   - Ceiling 9999: past it the pad overflows and natural sort breaks -- accepted for v1
 - [ ] Deferred: filename from RTC (PCF85063, I2C 0x51) `note_YYYYMMDD_HHMMSS.wav` once clock set via Sync/NTP; needs I2C bus hoisted out of `audio_bsp` so codec + RTC share one bus
-- [ ] Record everything naively -- no warm-up detection, no sample discard (startup pop accepted)
+- [ ] Record everything naively -- no warm-up detection, no sample discard
 
 ## State machine (replace stub in `main.c`)
 
@@ -48,7 +47,6 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] **2s-discard mechanic (Q7):** buffer-first (don't open file until 2s buffered) vs write-then-delete (`remove()` on short stop)
 - [ ] Auto-stop thresholds: battery %, free-space margin
 - [ ] Error Indication LED pattern (blink cadence, distinct from steady Recording Indicator)
-- [ ] Warm-up: confirm the startup pop is acceptable on real hardware once measured
 
 ## Menu + UI
 
