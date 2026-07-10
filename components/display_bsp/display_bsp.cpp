@@ -92,8 +92,13 @@ esp_err_t display_init(void) {
   ESP_ERROR_CHECK_WITHOUT_ABORT(gpio_config(&pwr));
   gpio_set_level((gpio_num_t)EPD_PWR_PIN, 0);
 
-  // 2. Construct the driver and do one FULL refresh at boot (clears power-off
-  //    ghosting and establishes the base image for later partial refreshes).
+  // 2. Construct the driver and enter partial-refresh mode. The order matters:
+  //    partial refresh (EPD_DisplayPart, used by flush_cb) diffs the new-image
+  //    RAM against the panel's OLD-image RAM (cmd 0x26). Only
+  //    EPD_DisplayPartBaseImage populates that old RAM, and it does so with the
+  //    full waveform (EPD_TurnOnDisplay, 0xc7) -- giving both the clean boot
+  //    flash and the base image. EPD_Init_Partial then swaps the LUT to the
+  //    partial waveform, so it must run AFTER the base image is laid.
   custom_lcd_spi_t cfg = {
       .cs = EPD_CS_PIN,
       .dc = EPD_DC_PIN,
@@ -107,11 +112,8 @@ esp_err_t display_init(void) {
   driver = new epaper_driver_display(EPD_WIDTH, EPD_HEIGHT, cfg);
   driver->EPD_Init();
   driver->EPD_Clear();
-  driver->EPD_Display();
-  // TODO: switch into partial mode so subsequent Idle<->Recording flips are
-  // fast and flash-free:
-  //   driver->EPD_Init_Partial();
-  //   driver->EPD_DisplayPartBaseImage();
+  driver->EPD_DisplayPartBaseImage();
+  driver->EPD_Init_Partial();
 
   // 3. Bring up LVGL and register the display.
   lv_init();
