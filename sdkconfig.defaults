@@ -1,0 +1,9 @@
+# External octal PSRAM (ESP32-S3-WROOM-1 N8R8). Required by the e-paper driver
+# framebuffer and the LVGL draw buffer, both allocated with MALLOC_CAP_SPIRAM.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# 8MB flash (N8R8). sdkconfig currently pins 2MB, which triggers the boot-time
+# "Detected size(8192k) larger than binary image header(2048k)" warning.
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
