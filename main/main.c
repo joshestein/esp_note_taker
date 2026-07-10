@@ -1,6 +1,7 @@
 #include "audio_bsp.h"
 #include "button_input.h"
 #include "config.h"
+#include "display_bsp.h"
 #include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -84,6 +85,13 @@ void app_main(void) {
   init_led();
   gpio_set_level(LED_PIN, 1); // LED starts off
 
+  // Best-effort: a dead panel must not abort captures. The LED is the primary
+  // recording tell (ADR 0005), so log and carry on if the display fails.
+  esp_err_t display_err = display_init();
+  if (display_err != ESP_OK) {
+    ESP_LOGW(TAG, "Display init failed: %s", esp_err_to_name(display_err));
+  }
+
   for (;;) {
     EventBits_t uxBits = xEventGroupWaitBits(
         button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT | CAPTURE_ENDED_BIT,
@@ -111,6 +119,7 @@ void app_main(void) {
       }
 
       state = IDLE;
+      display_show_idle();
     } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Boot button pressed");
       if (state == IDLE) {
@@ -139,6 +148,7 @@ void app_main(void) {
           state = IDLE;
         } else {
           ++note_counter;
+          display_show_recording();
         }
       } else if (state == RECORDING) {
         is_recording = false;
