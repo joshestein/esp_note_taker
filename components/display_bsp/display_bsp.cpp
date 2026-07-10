@@ -27,6 +27,12 @@ static const char *TAG = "display_bsp";
 static epaper_driver_display *driver = NULL;
 static SemaphoreHandle_t lvgl_mux = NULL;
 
+// Two screens built once at init and swapped with lv_screen_load, rather than
+// rebuilt on every flip. Cheaper, and avoids reallocating objects on the flush
+// path.
+static lv_obj_t *idle_screen = NULL;
+static lv_obj_t *recording_screen = NULL;
+
 static bool lvgl_lock(int timeout_ms) {
   TickType_t ticks =
       (timeout_ms == -1) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
@@ -70,17 +76,42 @@ static void lvgl_task(void *arg) {
 }
 
 // --- Screen builders ---------------------------------------------------------
-// Left as stubs on purpose. Fill with the actual LVGL widgets (a filled circle
-// via LV_RADIUS_CIRCLE + an lv_label "recording" for the record screen). Decide
-// whether to rebuild objects each call or pre-build two screens and swap them
-// with lv_screen_load (cheaper per flip).
+// The panel is 1-bit: flush_cb thresholds each RGB565 pixel to black/white, so
+// everything here is black-on-white. Screens are built once and cached.
 
-static void build_recording_screen(void) {
-  // TODO: filled circle + "recording" label.
+// Paint a screen's background solid white so thresholding yields a clean field.
+static void set_white_background(lv_obj_t *scr) {
+  lv_obj_set_style_bg_color(scr, lv_color_white(), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 }
 
 static void build_idle_screen(void) {
-  // TODO: minimal placeholder (blank or "ready"). Battery glyph is deferred.
+  idle_screen = lv_obj_create(NULL);
+  set_white_background(idle_screen);
+
+  lv_obj_t *label = lv_label_create(idle_screen);
+  lv_label_set_text(label, "ready");
+  lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+  lv_obj_center(label);
+}
+
+static void build_recording_screen(void) {
+  recording_screen = lv_obj_create(NULL);
+  set_white_background(recording_screen);
+
+  // Filled black circle, nudged up so the label has room beneath it.
+  lv_obj_t *circle = lv_obj_create(recording_screen);
+  lv_obj_set_size(circle, 80, 80);
+  lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+  lv_obj_set_style_bg_color(circle, lv_color_black(), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(circle, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_style_border_width(circle, 0, LV_PART_MAIN);
+  lv_obj_align(circle, LV_ALIGN_CENTER, 0, -24);
+
+  lv_obj_t *label = lv_label_create(recording_screen);
+  lv_label_set_text(label, "REC");
+  lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+  lv_obj_align_to(label, circle, LV_ALIGN_OUT_BOTTOM_MID, 0, 12);
 }
 
 esp_err_t display_init(void) {
@@ -144,6 +175,8 @@ esp_err_t display_init(void) {
 
   if (lvgl_lock(-1)) {
     build_idle_screen();
+    build_recording_screen();
+    lv_screen_load(idle_screen);
     lvgl_unlock();
   }
   return ESP_OK;
@@ -151,14 +184,14 @@ esp_err_t display_init(void) {
 
 void display_show_recording(void) {
   if (lvgl_lock(-1)) {
-    build_recording_screen();
+    lv_screen_load(recording_screen);
     lvgl_unlock();
   }
 }
 
 void display_show_idle(void) {
   if (lvgl_lock(-1)) {
-    build_idle_screen();
+    lv_screen_load(idle_screen);
     lvgl_unlock();
   }
 }
