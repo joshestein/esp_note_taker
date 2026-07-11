@@ -159,7 +159,9 @@ void app_main(void) {
 
   for (;;) {
     EventBits_t uxBits = xEventGroupWaitBits(
-        button_group, RECORD_BUTTON_BIT | POWER_BUTTON_BIT | CAPTURE_ENDED_BIT,
+        button_group,
+        RECORD_BUTTON_BIT | MENU_BUTTON_BIT | MENU_EXIT_BIT | MENU_SLEEP_BIT |
+            CAPTURE_ENDED_BIT,
         pdTRUE,  /* Clear before returning. */
         pdFALSE, /* Don't wait for both bits, either bit will do. */
         portMAX_DELAY);
