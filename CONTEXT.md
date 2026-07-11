@@ -1,92 +1,100 @@
 # ESP32-S3 Voice Note Device -- Glossary
 
 ## Capture
-A single audio recording session. Begins when the user presses the Record Button and ends when they press it again. Stored as one WAV file on the SD card. Discarded if shorter than 2 seconds.
+A single audio recording session. Begins on a Record Button press and ends on the next. Stored as one WAV file on the SD card. Discarded if shorter than 2 seconds.
 
 ## Record Button
-The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture. A second press ends the Capture.
+The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture; a second press ends it.
 
 ## Menu Button
-The PWR button (GPIO18). Named for its **primary** job -- navigating the Menu -- not the "PWR" silkscreen; the code names it `MENU_BUTTON` (renamed from an earlier `POWER_BUTTON`). Behaviors, all context-dependent:
-- **Short press from Idle:** enter the Menu.
-- **Short press in Menu:** "next" (step to the next card, see **One-card stepping**).
-- **Long press (~1s) in Menu:** exit back toward Idle.
-- **Long press (~2s) from Idle:** enter **Deep Sleep** (park the device). The longer hold than the Menu-exit long-press is deliberate -- it resists accidental triggering against the body on a pocket-worn device.
-- **During a Capture (Recording State):** **ignored** (deliberately dropped, not queued). Only the Record Button ends a Capture; the Menu Button has no mid-recording job, preserving the Menu/recording mutual exclusion.
+The PWR button (GPIO18); the code names it `MENU_BUTTON`. Behaviors, all context-dependent:
+- Short press from Idle: enter the Menu.
+- Short press in Menu: step to the next card (One-card stepping).
+- Long press (~1s) in Menu: exit back toward Idle.
+- Long press (~2s) from Idle: enter Deep Sleep (see ADR 0007).
+- During a Capture: ignored (dropped, not queued).
 
 ## Menu
-A mode, mutually exclusive with recording -- you cannot start a Capture while in the Menu; the Record Button is repurposed to "act on this card" (e.g. play). Entered from Idle via a short Menu Button press. Navigated one card at a time (see **One-card stepping**). Top-level cards: **Recordings**, **Sync**, **Storage**.
+A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to "act on this card." Entered from Idle via a short Menu Button press. Navigated by One-card stepping. Top-level cards: Recordings, Sync, Storage.
 
 ## One-card stepping
-The navigation model for the Menu: exactly one item is shown on screen at a time, and the Menu Button steps to the next one. Chosen over a scrolling multi-item list because the e-paper display refreshes slowly and only a single card region needs repainting per step.
+The Menu's navigation model: exactly one item is on screen at a time, and the Menu Button steps to the next.
 
 ## Recordings (menu card)
-The Menu card that lists existing Captures newest-first (sequence filenames sort naturally), stepped one at a time. The Record Button plays the shown Capture through the speaker; playback uses the same ES8311 codec (re-opened as for recording) plus the speaker amplifier, whose power (`Audio_PWR_PIN`, GPIO42) is switched on only for playback.
+The Menu card listing existing Captures newest-first, stepped one at a time. The Record Button plays the shown Capture through the speaker.
 
 ## Sync (menu card)
-The Menu card that connects to Wi-Fi and pushes Captures to a paired computer on the same LAN, which runs the AI transcription and keeps the files (see ADR 0003). Transcription runs off-device (too large for the ESP32-S3). Correct RTC time is obtained here via NTP rather than a manual time-setting UI. Design is in progress.
+The Menu card that connects to Wi-Fi, pushes Captures to the Companion on the LAN, and pulls Transcripts back. The device's RTC is set here from the Companion's HTTP `Date` header. See ADR 0003, ADR 0006.
 
 ## Sync trigger
-Sync is **manual**: entering the Sync card and pressing the Record Button connects Wi-Fi, uploads unsynced Captures, then disconnects. The radio stays off until deliberately triggered -- chosen to protect battery on the wearable; automatic/background sync is deferred until the power budget is known.
+Sync is manual: on the Sync card, a Record Button press connects Wi-Fi, uploads unsynced Captures, then disconnects. The radio stays off until triggered. See ADR 0003.
 
 ## Sync handshake
-A sync has two phases, both with the device as HTTP client. **Upload:** the device POSTs each unsynced WAV to a listener on the paired computer; the computer writes the file, flushes it to disk, and responds 200 with the stored filename/size. Only on that 200 does the device move the Capture to the **Synced folder**. **Download:** the device GETs the list of ready transcripts and fetches any it does not yet have (see **Transcript**). Any timeout, non-200, or dropped connection leaves the affected item for retry; both directions are idempotent (dedup by filename).
+The two-phase sync, with the device always the HTTP client. Upload: the device POSTs each unsynced Capture; on a 200 it moves the Capture to the Synced folder. Download: the device fetches the ready Transcripts it lacks. Any failure leaves that item for retry; both directions are idempotent by filename. Full contract in `docs/sync-protocol.md`.
 
 ## Transcript
-The plain-text transcription of a Capture, produced by the Companion's local Whisper and sent **back** to the device on a later sync (transcription is not instant, so a Capture's Transcript arrives on a subsequent sync, not the one that uploaded it -- the system is eventually-consistent). Stored at `/sdcard/transcripts/note_YYYYMMDD_HHMMSS.txt`, paired to its WAV by filename stem. The device only **holds** Transcripts (and may show a one-line preview on the Recordings card); it does not provide a full on-device reader -- real reading happens on the computer. Holding them keeps a future paging reader as a purely additive change.
+The plain-text transcription of a Capture, produced by the Companion and sent back on a later sync (eventually-consistent). Paired to its WAV by filename stem. The device only holds Transcripts (and may show a one-line preview on the Recordings card); it provides no full on-device reader. See ADR 0003.
 
 ## Companion
-The program running on the paired computer that receives uploaded Captures, transcribes them, and stores them. Lives in a **separate repository** (different language/runtime; Python + `faster-whisper`). Transcription is **local Whisper**, not a cloud API -- keeping audio on the LAN is the whole reason architecture B was chosen (see ADR 0003). Per memo it emits a plain-text transcript and a JSON transcript (segments + timestamps) alongside the WAV. From this firmware's side the Companion is just an HTTP endpoint honoring the **Sync handshake**; its internals are out of scope for this repo.
+The program on the paired computer that receives Captures, transcribes them (local Whisper), stores them, and serves Transcripts back. From the firmware's side, just an HTTP endpoint honoring the Sync handshake. Lives in the `companion/` subtree (Python + Flask). See ADR 0003, ADR 0008.
 
 ## Companion discovery
-How the device locates its Companion's current IP on the LAN. The Companion advertises a **per-owner mDNS hostname** (e.g. `josh-memo.local`); each device hardcodes the single hostname it belongs to (in the gitignored `wifi_secrets.h`, alongside Wi-Fi creds) and resolves it by mDNS at sync start. Chosen over a hardcoded IP (breaks when DHCP moves the address) and over DNS-SD service browsing with a pairing token (correct for a larger fleet, but overkill for a few hand-configured devices). With multiple devices on one LAN, uniqueness is guaranteed by giving each owner's Companion a distinct hostname. Because Wi-Fi is shared, all a household's devices carry identical Wi-Fi creds and differ only in this target hostname. Discovery (hostname vs service-browse) is orthogonal to **Sync auth**: moving to service browsing later is an additive change.
-
-**1:1 invariant:** a Companion serves exactly one device. Capture filenames (`note_NNNN`) come from a per-device counter and are only unique *within* a device, so pointing two devices at one Companion would collide (one device's `note_0003` overwrites the other's on upload). Per-owner pairing preserves this by construction. If 1:1 is ever broken (shared laptop, reflashed/reset counter re-syncing to a populated Companion), the fix is a per-device id prefix in the filename (`leo_note_0007`), hardcoded alongside the other `wifi_secrets.h` values -- deferred, since v1 is three devices each paired to their own laptop.
+How the device locates its Companion on the LAN: it resolves a per-owner mDNS hostname (e.g. `josh-memo.local`, held in the gitignored `wifi_secrets.h`) at sync start. **1:1 invariant:** one Companion serves exactly one device. See ADR 0006.
 
 ## Sync auth
-A single shared bearer token, hardcoded on both sides (device in `wifi_secrets.h`, Companion in its own config), sent as an `Authorization: Bearer <token>` header on every Sync request. The Companion rejects any request lacking it (401), which stops other machines on an untrusted LAN from POSTing junk Captures or scraping Transcripts, and stops the device from accepting a Companion that cannot echo the secret. Transport stays **plaintext HTTP** for now, so the token and the WAV body are still sniffable by a passive attacker already on the network -- an accepted risk for the manual, seconds-long sync window. Upgrading to TLS (encrypt the wire, verify Companion identity via a pinned cert) is deferred and is an additive change (`http://` -> `https://` + cert).
+A shared bearer token, hardcoded on both sides, sent as `Authorization: Bearer <token>` on every Sync request; the Companion 401s any request missing or carrying the wrong token. Transport is plaintext HTTP for now. See ADR 0006.
 
 ## Synced folder
-`/sdcard/synced/`. A Capture that has been confirmed-received by the paired computer is `rename()`d from the record folder into here. Captures are **kept, not deleted**, after sync -- the card is a durable archive. An unsynced Capture is simply one still in the record folder, so an interrupted upload retries next time with no separate index to corrupt. Freeing space (erasing synced Captures) is a manual action under the Storage card.
+`/sdcard/synced/`. A Capture confirmed-received by the Companion is `rename()`d here from the record folder. Captures are kept, not deleted, after sync. Freeing space is a manual action under the Storage card. See ADR 0003.
 
 ## Storage (menu card)
-The Menu card showing card status: free space and number of Captures, and possibly an erase-all action.
+The Menu card showing card status: free space, number of Captures, and possibly an erase-all action.
 
 ## Battery glyph
-Battery level is shown as an always-visible glyph on the Idle screen (read via `VBAT_PWR_PIN`, GPIO17), not as a Menu card -- battery status is wanted at a glance, not buried in navigation.
+An always-visible battery-level glyph on the Idle screen (read via `VBAT_PWR_PIN`, GPIO17), not a Menu card.
 
 ## Idle
-The device state when no Capture is in progress. The CPU is in light sleep; GPIO interrupts from either button trigger immediate wake. The e-paper display retains the last drawn image without power. The audio codec is powered down in Idle to stop its mic-bias drain -- no board pin gates the codec's supply, so this is a **software** power-down (the codec is closed on entering Idle and re-opened at record start), not a rail cut. `Audio_PWR_PIN` (GPIO42) gates only the speaker amplifier and stays off except during playback. The SD card stays mounted for fast record start.
+The device state when no Capture is in progress. The CPU is in Light Sleep; either button wakes it. The e-paper display retains its last image; the audio codec is powered down (see ADR 0002); the SD card stays mounted for fast record start.
 
 ## Recording State
-The device state during an active Capture. Audio is read from the codec and written in chunks to an open WAV file on the SD card. Recording is naive: every sample is kept from the moment capture starts, none detected or discarded. (This is separate from the 2-second minimum-Capture rule under **Capture**, which discards a whole short Capture, not samples within one.)
+The device state during an active Capture: audio is read from the codec and written in chunks to an open WAV file. Recording is naive: every sample is kept from the moment capture starts, none discarded. (Distinct from the 2-second minimum-Capture rule under Capture, which discards a whole short Capture, not samples within one.)
 
 ## Finalizing
-The device state after a Capture ends, while the WAV header is patched and the file is closed on the SD card. A broken Capture (failed write, or a task that never started) is `remove()`d here, not saved -- distinct from the <2s short-Capture discard under **Capture**, which drops a complete-but-too-short one. Reached only when the record task signals it has stopped (see ADR 0004). Button presses during Finalizing are dropped, not queued -- a press here does not start a new Capture. Prevents accidental stacked recordings on a pocket-worn device and avoids racing the still-open file handle.
+The device state after a Capture ends, while the WAV header is patched and the file closed. A broken Capture (failed write, or a task that never started) is `remove()`d here, not saved. Reached only when the record task signals it has stopped (see ADR 0004). Button presses during Finalizing are dropped, not queued.
 
 ## Light Sleep
-The ESP32-S3 sleep mode used during Idle. CPU is paused, RAM is retained, GPIO interrupts wake the device in ~1ms. Chosen over deep sleep to allow instant Capture start on button press. Distinct from **Deep Sleep**, the parked state.
+The sleep mode used during Idle: CPU paused, RAM retained, GPIO interrupts wake in ~1ms. See ADR 0001. Distinct from Deep Sleep.
 
 ## Deep Sleep
-The parked, lowest-drain state, distinct from Idle's **Light Sleep**. Entered by a ~2s long press of the **Menu Button** from Idle. CPU and RAM are powered down (Light Sleep retains RAM; Deep Sleep does not), so waking is a full **cold boot** -- remount the SD card, rescan the note counter, re-init the codec (~0.4-1s, versus Light Sleep's ~1ms resume). Both buttons wake it, with different targets: the **Menu Button** wakes to Idle, the **Record Button** wakes straight into a Capture. The Record-wake accepts a **clipped opening** (~0.5-1s of audio lost while the codec spins up during the cold boot) -- the "instant Capture" guarantee is a Light-Sleep/Idle property only. Chosen as a deliberate "stored away" state because Light-Sleep Idle still drains the battery over days (see ADR 0007).
+The parked, lowest-drain state. Entered by a ~2s long press of the Menu Button from Idle. CPU and RAM power down (RAM is lost), so waking is a full cold boot. Both buttons wake it: the Menu Button to Idle, the Record Button straight into a Capture (accepting a clipped opening). See ADR 0007.
 
 ## WAV File
-The storage format for each Capture. PCM, 16kHz sample rate, 1 channel (mono), 16-bit depth. Mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage. Named by a monotonic sequence number in v1: `note_NNNN.wav`, assigned at Capture start and increasing per Capture so newest sorts last. Timestamp naming (`note_YYYYMMDD_HHMMSS.wav`) is deferred until the clock is trustworthy (set via Sync/NTP); the RTC exists but is unset on a fresh device. The header's length fields are written only when the Capture ends (patched on close), so a sudden power loss mid-Capture leaves that one file unplayable -- an accepted risk, not mitigated by periodic flushing.
+The storage format for each Capture: PCM, 16kHz, mono, 16-bit. Named by a monotonic sequence in v1: `note_NNNN.wav`, assigned at Capture start. Timestamp naming (`note_YYYYMMDD_HHMMSS.wav`) is deferred until the clock is trustworthy. The header's length fields are patched on close, so a power loss mid-Capture leaves that one file unplayable.
 
 ## Auto-stop
-A Capture has no fixed time limit; it runs until the wearer presses Record again. It ends early only on a resource threshold -- low battery or near-full SD card -- stopping cleanly (finalize + close) so the memo survives rather than being lost to a dead battery or full card. Thresholds are deferred.
+A Capture has no fixed time limit; it runs until the next Record Button press. It ends early only on a resource threshold (low battery or near-full SD card), stopping cleanly so the memo survives. Thresholds are deferred.
 
 ## Recording Indicator
-An LED held steady for the full duration of a Capture, off otherwise. Lets the wearer confirm a session is active without close inspection. Chosen over haptic/audio cues for low power and simplicity.
+An LED held steady for the full duration of a Capture, off otherwise. Lets the wearer confirm a session is active without close inspection.
 
 ## Recording Screen
-The e-paper image shown for the full duration of a Capture: a filled circle glyph plus the word "recording". Distinct from the **Recording Indicator** (the LED) -- same meaning, different surface, painted once on entering the **Recording State** and replaced on return to **Idle**.
+The e-paper image shown for the duration of a Capture: a filled circle glyph plus the word "recording". Distinct from the Recording Indicator (the LED) -- same meaning, different surface.
 
 ## Error Indication
-A distinct LED pattern (e.g. blinking, unlike the steady Recording Indicator) signalling a failure the wearer must act on: no SD card at record start, card full, or card removed mid-Capture. The record task aborts to Finalizing (or straight to Idle if the card is gone) on any `fwrite` failure and raises this indication.
+A distinct LED pattern (e.g. blinking, unlike the steady Recording Indicator) signalling a failure the wearer must act on: no SD card at record start, card full, or card removed mid-Capture.
 
 ## SD Card
-The storage medium for WAV files. Required for device operation. Exposed via `sdcard_bsp` from the manufacturer example.
+The storage medium for WAV files. Required for device operation.
 
 ## RTC
-The PCF85063 real-time clock (I2C 0x51). Intended source of timestamps for WAV file naming, but unused in v1 (Captures use a sequence number -- see **WAV File**). Its supply is diode-OR'd from the 3V3 rail and the main battery, so once set it holds time through light sleep and soft power-off, losing it only if the battery is drained or removed. Time-setting is deferred to Sync/NTP; until then the clock is untrusted and naming stays sequence-based.
+The PCF85063 real-time clock (I2C 0x51). Intended timestamp source for WAV naming, unused in v1 (Captures use a sequence number). Time-setting is deferred to Sync (from the Companion's `Date` header); until then the clock is untrusted.
+
+---
+
+## Unfiled rationale (no ADR home yet)
+
+Reasoning trimmed from the glossary that isn't captured in any ADR. Each is a small ADR waiting to be written, or a note to fold into an existing one. Not glossary content -- parked here so it isn't lost.
+
+- **One-card stepping over a scrolling list:** chosen because e-paper refreshes slowly and only a single card region needs repainting per step, versus repainting a whole multi-item list. (Candidate: fold into ADR 0005.)
+- **WAV mono:** mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage.
+- **Recording Indicator over haptic/audio cues:** LED chosen for low power and simplicity.
