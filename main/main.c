@@ -113,13 +113,12 @@ static bool start_capture(int *note_counter) {
 // return.
 static void enter_deep_sleep(void) {
   ESP_LOGI(TAG, "Parking: entering deep sleep");
+  // Wake on either button (active low). _wakeup_io configures the RTC pulls
+  // itself (idling the pins high, held through RTC_PERIPH power-down), so no
+  // manual rtc_gpio setup is needed.
   const uint64_t wake_mask = (1ULL << RECORD_BUTTON) | (1ULL << MENU_BUTTON);
-  // Idle the wake pins high so an active-low press reads as the wake edge.
-  rtc_gpio_pullup_en(RECORD_BUTTON);
-  rtc_gpio_pulldown_dis(RECORD_BUTTON);
-  rtc_gpio_pullup_en(MENU_BUTTON);
-  rtc_gpio_pulldown_dis(MENU_BUTTON);
-  esp_sleep_enable_ext1_wakeup(wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
+  ESP_ERROR_CHECK(
+      esp_sleep_enable_ext1_wakeup_io(wake_mask, ESP_EXT1_WAKEUP_ANY_LOW));
   esp_deep_sleep_start();
 }
 
