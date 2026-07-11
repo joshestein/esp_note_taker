@@ -37,6 +37,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] No SD card at record start: refuse to start, Error Indication, stay Idle
 - [ ] Resource auto-stop: stop cleanly on low battery / near-full card (thresholds TBD)
 - [x] Accept sudden-power-loss corruption of the newest file (no periodic header flush -- non-goal, header patched on close only)
+- [ ] Display driver ctor `assert(buffer)` hard-aborts on SPIRAM alloc failure -- violates the best-effort display contract (a dead panel / PSRAM fault must not abort a Capture; see Menu+UI "non-fatal + trailing"). Replace the assert with a graceful null-return so `display_init` fails soft
 
 ## Power management
 
