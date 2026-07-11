@@ -63,15 +63,28 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## Sync (device side; companion is a separate repo)
 
-- [ ] WiFi creds in a **gitignored** header (`wifi_secrets.h`) -- never commit. Hardcode computer address too (prototype)
+- [ ] WiFi creds in a **gitignored** header (`wifi_secrets.h`) -- never commit. Also holds the per-owner Companion mDNS hostname (e.g. `josh-memo.local`) and the shared bearer token
+- [ ] Companion discovery: resolve per-owner mDNS hostname at sync start (ESP-IDF `mdns`), not a hardcoded IP. Multiple devices on one LAN disambiguated by distinct per-owner hostnames
+- [ ] Sync auth: shared bearer token in `Authorization` header on every request; Companion 401s if missing/wrong
+- [ ] Deferred (Tier 2): TLS for sync -- encrypt body + verify Companion via pinned cert. Additive over the plaintext token
 - [ ] Sync card: manual trigger (Record btn) -- connect WiFi, upload, disconnect. Radio off otherwise
+- [ ] Sync session envelope: `wifi connect -> mDNS resolve -> [uploads then downloads] -> wifi stop`. **Bounded timeouts** (connect ~10s, mDNS ~3s); any failure -> radio off, Error Indication, back to Menu (no hang)
+- [ ] Single keep-alive `esp_http_client` reused across all requests (one TCP setup, HTTP/1.1 keep-alive) -- do not reconnect per file
+- [ ] Order: upload all unsynced **oldest-first** (oldest memos safest if battery dies mid-sync), then download transcripts
+- [ ] Sync is **not atomic**: a resumable sequence of independent per-file commits (per-file 200 gates its own `rename`). Interrupted sync resumes next time; idempotent by filename, no rollback
 - [ ] Enumerate unsynced Captures (record folder), skip `/sdcard/synced/`
-- [ ] HTTP POST each WAV to companion listener; on 200 (file flushed) `rename()` into `/sdcard/synced/`
+- [ ] Upload wire format: raw-body `POST /captures/note_NNNN.wav` (filename in URL path), `Authorization` + `Content-Length` headers, WAV bytes as raw body (no multipart). **Stream from SD**: `stat` size -> `esp_http_client_open(client, size)` -> loop `fread` ~4KB chunk -> `esp_http_client_write` -> EOF. Flat RAM regardless of memo length; no chunked transfer-encoding
+- [ ] On 200 (file flushed/fsync'd, companion returns `{stored,size}`) `rename()` into `/sdcard/synced/`
 - [ ] Leave file unsynced on timeout/non-200/drop; retry next sync (idempotent by filename)
-- [ ] Download phase: GET transcript list from companion, fetch missing `.txt`, store `/sdcard/transcripts/note_*.txt` (paired by stem)
+- [ ] Download phase: `GET /transcripts` returns a bare JSON array of ready stems (`["note_0003","note_0005"]`); ESP diffs against local `/sdcard/transcripts/` and `GET /transcripts/note_NNNN.txt` for each missing stem. **Server stateless about the device** -- ESP never sends its "have" list; diff is local. `.txt` only (companion keeps the `.json` segments file)
+- [ ] Store fetched transcripts at `/sdcard/transcripts/note_*.txt` (paired by stem). **Atomic write** (v1): stream body to `note_NNNN.txt.part`, `rename()` to `.txt` only after a clean 200-to-EOF. A dropped GET leaves a `.part` (diff ignores it -> re-fetched next sync), never a truncated `.txt` that the presence-diff would treat as "have." Clean up stray `.part` at sync start
 - [ ] Recordings card: show one-line transcript preview if present (no paging reader -- hold only)
-- [ ] NTP time-set during sync -> update RTC (PCF85063)
-- [ ] Sync progress on e-paper (upload count + transcript-download count)
+- [ ] Time-set during sync: parse the Companion's HTTP `Date` response header (no SNTP/internet) -> set RTC (PCF85063). **Deferred** with the rest of timestamp naming; v1 stays sequence-based. TZ offset (for local-time filenames) decided later -- likely hardcoded in `wifi_secrets.h`
+- [ ] Dedicated **sync task** (mirror `record_task`): owns connect->transfer->disconnect, signals completion via an event-group bit. HTTP/WiFi block for seconds -- must not run on the button/LVGL task
+- [ ] Sync progress on e-paper: **phase-level only** for v1 ("Connecting" / "Uploading" / "Downloading" / final "Synced N up, M down"). ~4 partial refreshes total -- avoids per-file refresh thrash + ghosting (partial refresh ~0.3s each)
+- [ ] Deferred: throttled live counter (`7/20`, repaint every Nth file or ~2s) instead of phase-level only
+- [ ] No sync cancel in v1 (sync is seconds; let it finish)
+- [ ] Deferred: between-file cancel -- press Menu sets a flag, current file finishes its commit, loop bails clean to Menu (never mid-`POST`); already-synced files stay synced
 
 ## Deferred
 
