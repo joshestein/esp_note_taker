@@ -75,7 +75,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] Upload handler: stream body to `.part` -> `flush`+`fsync` -> `replace` into `captures/`, respond `{stored,size}` 200; failure branch unlinks `.part` + 500
 - [x] Real `faster-whisper` transcription (`base.en`, cpu/int8), single background worker thread + `queue.Queue`, atomic `.txt` write. **State-driven recovery:** `enqueue_pending()` rescans `captures/` at startup for WAVs lacking a `.txt`. Verified end-to-end 2026-07-11 (round-trip, 404, idempotent re-upload, rescan recovery). Superseded the instant stub
 - [x] Correct `Date` response header (Werkzeug default) for device RTC-set
-- [ ] Bearer auth: reject missing/wrong `Authorization` with 401 (`before_request` gate; hardcoded dev token now, move to gitignored `.env` later)
+- [x] Bearer auth: `before_request` gate, 401 empty-body on missing/wrong `Authorization`, constant-time compare. Token from `COMPANION_TOKEN` env (dev default). Verified 2026-07-11. Later: move token to gitignored `.env`
 - [ ] Deferred: native-app packaging (Briefcase) for mixed-OS friends -- not Docker (breaks LAN mDNS, ADR 0008)
 
 ## Sync (device side; companion lives in `companion/`)

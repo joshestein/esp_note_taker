@@ -1,6 +1,7 @@
 from pathlib import Path
 from queue import Queue
 from threading import Thread
+import hmac
 import os
 
 from faster_whisper import WhisperModel
@@ -17,8 +18,24 @@ app = Flask(__name__)
 # Max upload size is 32 MB
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1000 * 1000
 
+# Shared bearer token, hardcoded on both sides (device in wifi_secrets.h).
+# Fail closed: no default -- refuse to start rather than run with a public secret.
+_token = os.environ.get("COMPANION_TOKEN")
+if not _token:
+    raise RuntimeError(
+        "COMPANION_TOKEN env var must be set (shared bearer secret, no default)"
+    )
+COMPANION_TOKEN: str = _token
+
 MODEL = WhisperModel("base.en", device="cpu", compute_type="int8")
 JOBS = Queue()
+
+
+@app.before_request
+def require_bearer_token():
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    if scheme != "Bearer" or not hmac.compare_digest(token, COMPANION_TOKEN):
+        return "", 401  # contract: empty body
 
 
 @app.route("/transcripts", methods=["GET"])
