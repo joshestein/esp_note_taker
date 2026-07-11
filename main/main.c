@@ -204,6 +204,12 @@ void app_main(void) {
       if (state == IDLE) {
         enter_deep_sleep(); // does not return
       }
+    } else if ((uxBits & MENU_EXIT_BIT) != 0) {
+      // TODO: exit Menu toward Idle once Menu mode exists.
+      ESP_LOGI(TAG, "Menu long-press (exit) - Menu mode not yet implemented");
+    } else if ((uxBits & MENU_BUTTON_BIT) != 0) {
+      // TODO: enter Menu from Idle / step to next card once Menu mode exists.
+      ESP_LOGI(TAG, "Menu short-press - Menu mode not yet implemented");
     }
   }
 }
