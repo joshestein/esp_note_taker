@@ -61,7 +61,18 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] Playback path: `esp_codec_dev_write` via `audio_bsp`. Power the speaker amp on first: `Audio_PWR_PIN` (GPIO42) LOW; the codec driver drives PA_CTRL (GPIO46) enable itself. Amp back off after playback
 - [ ] Storage card: free space, # Captures, erase-synced action
 
-## Sync (device side; companion is a separate repo)
+## Companion (`companion/` -- Python + Flask, see ADR 0008)
+
+- [ ] Skeleton scaffold: `companion/` dir, `.python-version` (3.12), `.venv/` gitignored, Flask dep
+- [ ] Flask app, 3 endpoints per `docs/sync-protocol.md`: `POST /captures/<name>.wav`, `GET /transcripts`, `GET /transcripts/<name>.txt`
+- [ ] Upload handler: stream body to temp path -> fsync -> rename into `captures/`, then respond `{stored,size}` 200 (the 200 must guarantee the file is committed)
+- [ ] Stub transcript (no Whisper yet): on upload, immediately write `transcripts/<stem>.txt` so the device download phase is testable end-to-end. This is the seam real transcription replaces
+- [ ] Bearer auth: reject missing/wrong `Authorization` with 401 (hardcoded dev token now; move to gitignored `.env` later)
+- [ ] Correct `Date` response header (default in most libs) for device RTC-set
+- [ ] Deferred: swap stub for real `faster-whisper`, run as a **background worker** (POST returns fast, transcription async)
+- [ ] Deferred: native-app packaging (Briefcase) for mixed-OS friends -- not Docker (breaks LAN mDNS, ADR 0008)
+
+## Sync (device side; companion lives in `companion/`)
 
 - [ ] WiFi creds in a **gitignored** header (`wifi_secrets.h`) -- never commit. Also holds the per-owner Companion mDNS hostname (e.g. `josh-memo.local`) and the shared bearer token
 - [ ] Companion discovery: resolve per-owner mDNS hostname at sync start (ESP-IDF `mdns`), not a hardcoded IP. Multiple devices on one LAN disambiguated by distinct per-owner hostnames
