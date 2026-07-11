@@ -70,13 +70,12 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## Companion (`companion/` -- Python + Flask, see ADR 0008)
 
-- [ ] Skeleton scaffold: `companion/` dir, `.python-version` (3.12), `.venv/` gitignored, Flask dep
-- [ ] Flask app, 3 endpoints per `docs/sync-protocol.md`: `POST /captures/<name>.wav`, `GET /transcripts`, `GET /transcripts/<name>.txt`
-- [ ] Upload handler: stream body to temp path -> fsync -> rename into `captures/`, then respond `{stored,size}` 200 (the 200 must guarantee the file is committed)
-- [ ] Stub transcript (no Whisper yet): on upload, immediately write `transcripts/<stem>.txt` so the device download phase is testable end-to-end. This is the seam real transcription replaces
-- [ ] Bearer auth: reject missing/wrong `Authorization` with 401 (hardcoded dev token now; move to gitignored `.env` later)
-- [ ] Correct `Date` response header (default in most libs) for device RTC-set
-- [ ] Deferred: swap stub for real `faster-whisper`, run as a **background worker** (POST returns fast, transcription async)
+- [x] Skeleton scaffold: `companion/` dir + `.venv` (pyenv 3.12) + `requirements.txt`. Remaining: `.python-version` (3.12), `.gitignore` (`.venv/`, `captures/`, `transcripts/`, `__pycache__/`)
+- [x] Flask app, 3 endpoints per `docs/sync-protocol.md`: `POST /captures/<name>.wav`, `GET /transcripts`, `GET /transcripts/<name>.txt`
+- [x] Upload handler: stream body to `.part` -> `flush`+`fsync` -> `replace` into `captures/`, respond `{stored,size}` 200; failure branch unlinks `.part` + 500
+- [x] Real `faster-whisper` transcription (`base.en`, cpu/int8), single background worker thread + `queue.Queue`, atomic `.txt` write. **State-driven recovery:** `enqueue_pending()` rescans `captures/` at startup for WAVs lacking a `.txt`. Verified end-to-end 2026-07-11 (round-trip, 404, idempotent re-upload, rescan recovery). Superseded the instant stub
+- [x] Correct `Date` response header (Werkzeug default) for device RTC-set
+- [ ] Bearer auth: reject missing/wrong `Authorization` with 401 (`before_request` gate; hardcoded dev token now, move to gitignored `.env` later)
 - [ ] Deferred: native-app packaging (Briefcase) for mixed-OS friends -- not Docker (breaks LAN mDNS, ADR 0008)
 
 ## Sync (device side; companion lives in `companion/`)
