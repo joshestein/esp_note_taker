@@ -32,7 +32,8 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 ## Reliability
 
 - [ ] 2-second minimum Capture: discard whole Capture if shorter (measure in bytes, 64,000 = 2s mono). **Mechanic undecided** -- see Open below
-- [ ] Check every `fwrite` return; on failure abort to Finalizing/Idle + raise Error Indication
+- [x] Check every `fwrite`/codec-read return; on failure the task records the outcome (`capture_ok`, default-false, task is sole writer) and breaks -> FINALISING deletes the partial file via `remove(path)`.
+- [ ] Error Indication LED pattern on that failure (currently only logs)
 - [ ] No SD card at record start: refuse to start, Error Indication, stay Idle
 - [ ] Resource auto-stop: stop cleanly on low battery / near-full card (thresholds TBD)
 - [ ] Accept sudden-power-loss corruption of the newest file (no periodic header flush)
