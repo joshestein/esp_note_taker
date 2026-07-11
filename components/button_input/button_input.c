@@ -53,6 +53,19 @@ esp_err_t button_init(EventGroupHandle_t *out_button_group) {
   iot_button_register_cb(menu_gpio_btn, BUTTON_SINGLE_CLICK, NULL,
                          button_set_bit_cb, (void *)MENU_BUTTON_BIT);
 
+  // Two long-press thresholds on the same button. Holding to the 2s SLEEP
+  // threshold trips the 1s EXIT callback first, so both bits get set on a
+  // long hold; main.c must give MENU_SLEEP_BIT precedence over MENU_EXIT_BIT.
+  button_event_args_t exit_args = {
+      .long_press = {.press_time = MENU_EXIT_HOLD_MS}};
+  iot_button_register_cb(menu_gpio_btn, BUTTON_LONG_PRESS_START, &exit_args,
+                         button_set_bit_cb, (void *)MENU_EXIT_BIT);
+
+  button_event_args_t sleep_args = {
+      .long_press = {.press_time = MENU_SLEEP_HOLD_MS}};
+  iot_button_register_cb(menu_gpio_btn, BUTTON_LONG_PRESS_START, &sleep_args,
+                         button_set_bit_cb, (void *)MENU_SLEEP_BIT);
+
   *out_button_group = button_group;
   return ESP_OK;
 }
