@@ -8,7 +8,9 @@
 
 static EventGroupHandle_t button_group;
 
-static void button_single_click_cb(void *arg, void *usr_data) {
+// Generic handler: sets the event-group bit passed as usr_data. Shared across
+// single-click and long-press events for both buttons.
+static void button_set_bit_cb(void *arg, void *usr_data) {
   uint32_t bit_num = (uint32_t)(uintptr_t)usr_data;
   xEventGroupSetBits(button_group, bit_num);
 }
