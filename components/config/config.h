@@ -4,7 +4,7 @@
 #include "driver/spi_common.h"
 
 #define RECORD_BUTTON GPIO_NUM_0
-#define POWER_BUTTON GPIO_NUM_18
+#define MENU_BUTTON GPIO_NUM_18
 
 #define SAMPLE_RATE 16000
 
