@@ -6,6 +6,10 @@
 #define RECORD_BUTTON GPIO_NUM_0
 #define MENU_BUTTON GPIO_NUM_18
 
+// Menu Button long-press thresholds (see ADR 0007).
+#define MENU_SLEEP_HOLD_MS 2000 // long press from Idle -> Deep Sleep
+#define MENU_EXIT_HOLD_MS 1000 // long press in Menu -> exit toward Idle
+
 #define SAMPLE_RATE 16000
 
 #define I2C_SDA_PIN GPIO_NUM_47
