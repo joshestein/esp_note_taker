@@ -76,6 +76,36 @@ static void record_task(void *arg) {
   vTaskDelete(NULL);
 }
 
+// Opens the next WAV file, turns on the Recording Indicator, and spawns the
+// record task. Returns true on success (caller should move to RECORDING) or
+// false on any failure (state stays IDLE, nothing left dangling).
+static bool start_capture(int *note_counter) {
+  snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", *note_counter + 1);
+  esp_err_t open_err = wav_open(path);
+  if (open_err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to open WAV file: %s", esp_err_to_name(open_err));
+    return false;
+  }
+
+  is_recording = true;
+  capture_ok = false;
+  gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
+  BaseType_t task_create_err =
+      xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
+  if (task_create_err != pdPASS) {
+    // If task creation fails, clean up and reset state
+    ESP_LOGE(TAG, "Failed to create record task");
+    wav_close();
+    remove(path);
+    is_recording = false;
+    gpio_set_level(LED_PIN, 1); // Turn off LED
+    return false;
+  }
+
+  ++(*note_counter);
+  return true;
+}
+
 void app_main(void) {
   app_state_t state = IDLE;
   ESP_ERROR_CHECK(button_init(&button_group));
@@ -121,33 +151,10 @@ void app_main(void) {
       state = IDLE;
       display_show_idle();
     } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
-      ESP_LOGI(TAG, "Boot button pressed");
+      ESP_LOGI(TAG, "Record button pressed");
       if (state == IDLE) {
-        snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", note_counter + 1);
-        esp_err_t open_err = wav_open(path);
-        if (open_err != ESP_OK) {
-          ESP_LOGE(TAG, "Failed to open WAV file: %s",
-                   esp_err_to_name(open_err));
-          continue;
-        }
-
-        state = RECORDING;
-        is_recording = true;
-        capture_ok = false;
-        gpio_set_level(LED_PIN, 0); // Turn on LED to indicate recording
-        BaseType_t task_create_err =
-            xTaskCreate(record_task, "record_task", 4096, NULL, 5, NULL);
-
-        if (task_create_err != pdPASS) {
-          // If task creation fails, clean up and reset state
-          ESP_LOGE(TAG, "Failed to create record task");
-          wav_close();
-          remove(path);
-          is_recording = false;
-          gpio_set_level(LED_PIN, 1); // Turn off LED
-          state = IDLE;
-        } else {
-          ++note_counter;
+        if (start_capture(&note_counter)) {
+          state = RECORDING;
           display_show_recording();
         }
       } else if (state == RECORDING) {
