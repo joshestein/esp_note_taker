@@ -18,8 +18,8 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
   - Card swap self-heals: remount rescans, so the number is always derived from the card actually present (no cross-card clobber)
   - Discarded (<2s) Capture: number already consumed, leaves a gap -- harmless, sort still holds
   - Ceiling 9999: past it the pad overflows and natural sort breaks -- accepted for v1
-- [ ] Deferred: filename from RTC (PCF85063, I2C 0x51) `note_YYYYMMDD_HHMMSS.wav` once clock set via Sync/NTP; needs I2C bus hoisted out of `audio_bsp` so codec + RTC share one bus
-- [ ] Record everything naively -- no warm-up detection, no sample discard
+- [ ] Deferred: filename from RTC (PCF85063, I2C 0x51) `note_YYYYMMDD_HHMMSS.wav` once clock set via Sync (Companion `Date` header); needs I2C bus hoisted out of `audio_bsp` so codec + RTC share one bus
+- [x] Record everything naively -- no warm-up detection, no sample discard (`record_task` has no discard logic; this is the implemented behavior)
 
 ## State machine (replace stub in `main.c`)
 
@@ -36,7 +36,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] Error Indication LED pattern on that failure (currently only logs)
 - [ ] No SD card at record start: refuse to start, Error Indication, stay Idle
 - [ ] Resource auto-stop: stop cleanly on low battery / near-full card (thresholds TBD)
-- [ ] Accept sudden-power-loss corruption of the newest file (no periodic header flush)
+- [x] Accept sudden-power-loss corruption of the newest file (no periodic header flush -- non-goal, header patched on close only)
 
 ## Power management
 
@@ -51,12 +51,18 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## Menu + UI
 
+- [x] **Recording Screen** (first e-paper screen; see ADR 0005): `epaper_driver_bsp` lifted from the 1.54 example, LVGL v9 wrapped behind C-API `display_bsp`; hardware-verified. Idle="ready", Recording=circle+"REC", wired best-effort into `main.c`
+  - `display_init()` at boot after sdcard/audio init; paint minimal Idle screen with a **full refresh** (establishes partial base, clears ghosting)
+  - `display_show_recording()` = filled circle + "recording"; `display_show_idle()` = minimal placeholder (real Idle screen + battery glyph deferred, TODO 57)
+  - Idle<->Recording flips use **partial refresh** (~0.3s, no flash)
+  - Non-fatal + trailing: never `ESP_ERROR_CHECK` display in the record path; start record task first then paint recording, close WAV first then paint idle
+  - No separate Finalizing screen (state is brief; go recording -> idle)
 - [ ] Menu mode (mutually exclusive with recording; Record button repurposed to "act on card")
 - [ ] One-card stepping navigation: Menu btn = next card, long-press Menu = exit toward Idle
 - [ ] Top-level cards: Recordings, Sync, Storage
 - [ ] E-paper rendering: discrete screens, partial refresh per card, periodic full refresh to clear ghosting
 - [ ] Battery glyph on Idle screen (read `VBAT_PWR_PIN` GPIO17) -- not a menu card
-- [ ] Power-off/sleep gesture: long-press Menu from Idle
+- [x] Power-off/sleep gesture: long-press (~2s) Menu from Idle -> Deep Sleep (`main.c` `MENU_SLEEP_BIT` -> `enter_deep_sleep`)
 - [ ] Recordings card: step Captures newest-first, Record btn = play through speaker (power codec on for playback)
 - [ ] Playback path: `esp_codec_dev_write` via `audio_bsp`. Power the speaker amp on first: `Audio_PWR_PIN` (GPIO42) LOW; the codec driver drives PA_CTRL (GPIO46) enable itself. Amp back off after playback
 - [ ] Storage card: free space, # Captures, erase-synced action
@@ -102,4 +108,4 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] WiFi provisioning: USB-serial pairing via companion, or SoftAP (replaces hardcoded creds)
 - [ ] Automatic/background sync (pending power budget)
 - [ ] Bonus: device-hosted LAN download page (no transcription)
-- [ ] Manual time-set UI -- likely unnecessary once NTP works
+- [ ] Manual time-set UI -- likely unnecessary once sync time-set (Companion `Date` header) works
