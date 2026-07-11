@@ -7,7 +7,12 @@ A single audio recording session. Begins when the user presses the Record Button
 The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture. A second press ends the Capture.
 
 ## Menu Button
-The PWR button (GPIO18). A short press from Idle enters the Menu. Inside the Menu it means "next" (step to the next card). A long press exits back toward Idle. A long press from Idle powers the device off/to sleep.
+The PWR button (GPIO18). Named for its **primary** job -- navigating the Menu -- not the "PWR" silkscreen; the code names it `MENU_BUTTON` (renamed from an earlier `POWER_BUTTON`). Behaviors, all context-dependent:
+- **Short press from Idle:** enter the Menu.
+- **Short press in Menu:** "next" (step to the next card, see **One-card stepping**).
+- **Long press (~1s) in Menu:** exit back toward Idle.
+- **Long press (~2s) from Idle:** enter **Deep Sleep** (park the device). The longer hold than the Menu-exit long-press is deliberate -- it resists accidental triggering against the body on a pocket-worn device.
+- **During a Capture (Recording State):** **ignored** (deliberately dropped, not queued). Only the Record Button ends a Capture; the Menu Button has no mid-recording job, preserving the Menu/recording mutual exclusion.
 
 ## Menu
 A mode, mutually exclusive with recording -- you cannot start a Capture while in the Menu; the Record Button is repurposed to "act on this card" (e.g. play). Entered from Idle via a short Menu Button press. Navigated one card at a time (see **One-card stepping**). Top-level cards: **Recordings**, **Sync**, **Storage**.
