@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_sleep.h"
 #include "freertos/idf_additions.h"
 #include "sdcard_bsp.h"
 #include "wav_writer.h"
@@ -106,6 +107,21 @@ static bool start_capture(int *note_counter) {
   return true;
 }
 
+// Park the device in Deep Sleep. Wakes on either button, active low; the wake
+// cause is read back on the next boot to decide Idle vs Capture. Does not
+// return.
+static void enter_deep_sleep(void) {
+  ESP_LOGI(TAG, "Parking: entering deep sleep");
+  const uint64_t wake_mask = (1ULL << RECORD_BUTTON) | (1ULL << MENU_BUTTON);
+  // Idle the wake pins high so an active-low press reads as the wake edge.
+  rtc_gpio_pullup_en(RECORD_BUTTON);
+  rtc_gpio_pulldown_dis(RECORD_BUTTON);
+  rtc_gpio_pullup_en(MENU_BUTTON);
+  rtc_gpio_pulldown_dis(MENU_BUTTON);
+  esp_sleep_enable_ext1_wakeup(wake_mask, ESP_EXT1_WAKEUP_ANY_LOW);
+  esp_deep_sleep_start();
+}
+
 void app_main(void) {
   app_state_t state = IDLE;
   ESP_ERROR_CHECK(button_init(&button_group));
@@ -160,8 +176,13 @@ void app_main(void) {
       } else if (state == RECORDING) {
         is_recording = false;
       }
-    } else if ((uxBits & POWER_BUTTON_BIT) != 0) {
-      ESP_LOGI(TAG, "Power pressed...");
+      // FINALISING: press dropped, no queued restart (see CONTEXT.md).
+    } else if ((uxBits & MENU_SLEEP_BIT) != 0) {
+      // Checked before MENU_EXIT_BIT: a 2s hold trips the 1s EXIT threshold too.
+      // Deep Sleep only from Idle; a Menu press during a Capture is ignored.
+      if (state == IDLE) {
+        enter_deep_sleep(); // does not return
+      }
     }
   }
 }
