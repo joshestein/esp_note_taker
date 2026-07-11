@@ -9,6 +9,7 @@
 #include "freertos/idf_additions.h"
 #include "sdcard_bsp.h"
 #include "wav_writer.h"
+#include <stdbool.h>
 #include <stdio.h>
 
 static const char *TAG = "main";
@@ -124,6 +125,16 @@ static void enter_deep_sleep(void) {
 
 void app_main(void) {
   app_state_t state = IDLE;
+
+  // If we woke from Deep Sleep via the Record Button, honor the "instant
+  // Capture" promise by starting to record as soon as the SD card and codec are
+  // up. A Menu-Button wake (or a cold power-on) wakes to Idle.
+  bool wake_to_record = false;
+  if (esp_sleep_get_wakeup_causes() & (1ULL << ESP_SLEEP_WAKEUP_EXT1)) {
+    uint64_t wake_pins = esp_sleep_get_ext1_wakeup_status();
+    wake_to_record = (wake_pins & (1ULL << RECORD_BUTTON)) != 0;
+  }
+
   ESP_ERROR_CHECK(button_init(&button_group));
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
@@ -131,11 +142,19 @@ void app_main(void) {
   init_led();
   gpio_set_level(LED_PIN, 1); // LED starts off
 
+  // On a Record-Button wake, start the Capture immediately without waiting for display initialisation
+  if (wake_to_record && start_capture(&note_counter)) {
+    state = RECORDING;
+  }
+
   // Best-effort: a dead panel must not abort captures. The LED is the primary
   // recording tell (ADR 0005), so log and carry on if the display fails.
   esp_err_t display_err = display_init();
   if (display_err != ESP_OK) {
     ESP_LOGW(TAG, "Display init failed: %s", esp_err_to_name(display_err));
+  }
+  if (state == RECORDING) {
+    display_show_recording();
   }
 
   for (;;) {
