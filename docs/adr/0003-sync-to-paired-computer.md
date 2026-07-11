@@ -18,4 +18,4 @@ Transcription runs off-device because a Whisper-class model does not fit on the 
 
 - Wi-Fi credentials (and, for now, the computer's address) are hard-coded as a prototype shortcut and must stay in a gitignored file, never committed. A real provisioning path (USB-serial pairing via the companion, or SoftAP) is deferred.
 - Sync is manual and radio-off-until-triggered to protect battery; automatic/background sync is deferred until the power budget is known.
-- Correct RTC time is obtained via NTP during a sync, so no manual time-setting UI is needed.
+- Correct RTC time is obtained during a sync from the Companion's HTTP `Date` response header (not SNTP -- see ADR 0006), so no manual time-setting UI is needed.
