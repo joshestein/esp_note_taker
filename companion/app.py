@@ -4,9 +4,12 @@ from threading import Thread
 import hmac
 import os
 
+from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 from flask import Flask, request, send_from_directory
 from werkzeug.utils import secure_filename
+
+load_dotenv()
 
 BASE = Path(__file__).resolve().parent
 CAPTURES = BASE / "captures"
