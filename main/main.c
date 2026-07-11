@@ -127,12 +127,10 @@ void app_main(void) {
 
   // If we woke from Deep Sleep via the Record Button, honor the "instant
   // Capture" promise by starting to record as soon as the SD card and codec are
-  // up. A Menu-Button wake (or a cold power-on) wakes to Idle.
-  bool wake_to_record = false;
-  if (esp_sleep_get_wakeup_causes() & (1ULL << ESP_SLEEP_WAKEUP_EXT1)) {
-    uint64_t wake_pins = esp_sleep_get_ext1_wakeup_status();
-    wake_to_record = (wake_pins & (1ULL << RECORD_BUTTON)) != 0;
-  }
+  // up. A Menu-Button wake (or a cold power-on) wakes to Idle. The status call
+  // returns 0 for any non-EXT1 wake, so no separate wakeup-cause check needed.
+  bool wake_to_record =
+      (esp_sleep_get_ext1_wakeup_status() & (1ULL << RECORD_BUTTON)) != 0;
 
   ESP_ERROR_CHECK(button_init(&button_group));
   ESP_ERROR_CHECK(sdcard_init());
