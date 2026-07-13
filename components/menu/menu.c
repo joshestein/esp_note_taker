@@ -71,6 +71,4 @@ menu_intent_t menu_act(void) {
 void menu_exit(void) {
   esp_timer_stop(timeout_timer);
   xEventGroupClearBits(button_group, MENU_TIMEOUT_BIT);
-  // full refresh
-  display_show_idle(true);
 }

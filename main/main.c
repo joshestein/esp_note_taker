@@ -219,6 +219,7 @@ void app_main(void) {
                 (uxBits & MENU_TIMEOUT_BIT) != 0) &&
                state == MAIN_MENU) {
       menu_exit();
+      display_show_idle(true);
       state = IDLE;
     } else if ((uxBits & MENU_BUTTON_BIT) != 0) {
       if (state == IDLE) {
