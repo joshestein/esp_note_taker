@@ -37,10 +37,11 @@ static lv_obj_t *idle_screen = NULL;
 static lv_obj_t *recording_screen = NULL;
 static lv_obj_t *deep_sleep_screen = NULL;
 
-// The Menu screen is the one exception to the build-once rule: its cards are
-// rebuilt on every paint, since the Selection moves. Held so the previous one
-// can be freed after the new one is loaded.
+// The two exceptions to the build-once rule: the Menu's cards are rebuilt on
+// every paint (the Selection moves) and the message screen's text changes. Held
+// so the previous one can be freed after the new one is loaded.
 static lv_obj_t *menu_screen = NULL;
+static lv_obj_t *message_screen = NULL;
 
 // Read and cleared by flush_cb. Set under the LVGL lock before the screen load
 // that triggers the flush -- the flush itself runs later, on the LVGL task.
@@ -118,6 +119,27 @@ static void build_idle_screen(void) {
   lv_label_set_text(label, "ready");
   lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
   lv_obj_center(label);
+}
+
+// Rebuilt on every paint, since the text changes. Returns a detached screen; the
+// caller loads it and frees the previous one.
+static lv_obj_t *build_message_screen(const char *text) {
+  lv_obj_t *scr = lv_obj_create(NULL);
+  set_white_background(scr);
+  lv_obj_set_style_border_width(scr, 0, LV_PART_MAIN);
+  lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
+
+  lv_obj_t *label = lv_label_create(scr);
+  lv_label_set_text(label, text);
+  // Wrap rather than run off the panel: a Sync result can be as long as
+  // "3 up, 1 down, 2 failed".
+  lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(label, EPD_WIDTH - 24);
+  lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+  lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+  lv_obj_center(label);
+
+  return scr;
 }
 
 // Unlike the Idle and Recording screens, this one is rebuilt on every paint --
@@ -290,6 +312,19 @@ void display_show_idle(bool full_refresh) {
     full_refresh_pending = full_refresh;
     lv_screen_load(idle_screen);
     lv_obj_invalidate(idle_screen);
+    lvgl_unlock();
+  }
+}
+
+void display_show_message(const char *text, bool full_refresh) {
+  if (lvgl_lock(-1)) {
+    full_refresh_pending = full_refresh;
+    lv_obj_t *previous = message_screen;
+    message_screen = build_message_screen(text);
+    lv_screen_load(message_screen);
+    if (previous != NULL) {
+      lv_obj_delete(previous);
+    }
     lvgl_unlock();
   }
 }
