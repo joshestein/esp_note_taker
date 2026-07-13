@@ -10,11 +10,21 @@ Both buttons wake from Park, with different targets:
 
 The Record-wake path **accepts a clipped opening**: the first ~0.5-1s of audio is lost while the codec spins up during the cold boot. This is the one place we knowingly break ADR 0001's "instant capture" guarantee -- and we scope the break precisely: **the instant-capture guarantee is a light-sleep/Idle property only, not a Park property.** From Idle, no clip. From Park, the user accepts a clipped first word as the cost of the low-drain state they explicitly chose.
 
-Two thresholds guard the gestures: **2s** to park (from Idle), **1s** to exit the Menu. The longer park hold resists accidental triggering against the body on a pocket-worn device; a false park is recoverable (any press wakes it) but silent and annoying, so it is worth making deliberate.
+## Amendment: park is a Menu card, not a hold
+
+The original decision entered Park by a **~2s long press of the Menu Button from Idle**, alongside a **~1s** hold to exit the Menu -- two thresholds on one button. That is superseded: **Park is now entered from a Sleep card in the Menu**, and there is exactly **one** long-press threshold (~1s, exit the Menu). No hold of any duration parks the device.
+
+The dual-threshold gesture had a defect that only surfaced once the Menu existed. Both callbacks fire at their thresholds *while the button is still held*, so a 2s hold raises the 1s EXIT event first and the 2s SLEEP event second, as two separate wake-ups. A 2s hold **from inside the Menu** would therefore exit to Idle at 1s and then, finding itself legally in Idle, park at 2s -- turning the Menu's most-repeated gesture into one over-hold away from the device's most expensive accident (RAM lost, cold boot to recover). Guarding that (latching the press's originating state to disarm the hold mid-Menu) is possible but adds a concept to defend a gesture that was already the weakest part of this ADR.
+
+Deleting the park hold removes the second threshold, the precedence rule between the two bits, and the guard, all at once. It also **serves this ADR's own stated concern better than the hold did**: the 2s threshold existed to "resist accidental triggering against the body on a pocket-worn device," and a card cannot be triggered by a pocket at all -- reaching it takes a deliberate sequence of presses against a screen you can read.
+
+The cost is that parking is no longer one gesture: it is enter Menu, step to Sleep, press Record. That is the right trade, because parking is a **rare** action (days-scale storage) while recording is the hot path -- and the reasoning that killed a "Record" menu card (never make the hot path slower) does not apply in reverse to a cold one. Everything else in this ADR stands: the two-tier model, both wake targets, and the accepted clipped opening on a Record-Button wake from Park.
 
 ## Considered Options
 
 - **No off state (light-sleep Idle only)**: least code, no clip ever. Ruled out because a wearable left unused for days needs a true low-drain state; ~1-5mA is not "stored away."
 - **Deep-sleep park, Record-wake buffers the intent through cold boot to honor instant-capture**: preserves the no-clip guarantee everywhere. Ruled out because it means promising a recording before SD mount / counter rescan have succeeded; if init fails, the promise is broken with audio already "started." Cleaner to scope the guarantee to Idle.
 - **Deep-sleep park, both buttons wake only to Idle (no wake-to-record)**: no clip, but a user who grabs the parked device to capture a thought must press twice and wait. Ruled out as a worse capture UX for the device's core purpose; the clip is the lesser cost.
-- **Single long-press threshold for both park and Menu-exit**: less code. Ruled out because a 2s Menu-exit feels sluggish and a 1s park is too easy to trigger in a pocket; the two gestures have very different accident costs.
+- **Two long-press thresholds, 2s park + 1s Menu-exit** (the original decision): rejected on the reasoning in the amendment above -- the thresholds are not cleanly separable on a held button, and the collision lands on the Menu's most common gesture.
+- **Keep the 2s park hold, and disarm it for holds that begin in the Menu**: preserves the fast one-gesture park and fixes the collision with a latched flag. Ruled out because it keeps two thresholds and adds a guard, where the card removes all three; the fast park is not worth that, park being a rare action.
+- **Sleep card *and* the 2s hold, both**: two ways to park. Ruled out as strictly more concepts and more code than either alone, still carrying the collision.
