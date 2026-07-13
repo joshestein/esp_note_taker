@@ -58,16 +58,16 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
   - Idle<->Recording flips use **partial refresh** (~0.3s, no flash)
   - Non-fatal + trailing: never `ESP_ERROR_CHECK` display in the record path; start record task first then paint recording, close WAV first then paint idle
   - No separate Finalizing screen (state is brief; go recording -> idle)
-- [ ] `menu` component: owns the card ring, index, wrap, timeout, and the `display_bsp` calls. **Reports intents, performs no side effects** (`MENU_INTENT_NONE|SYNC|SLEEP|EXIT`); `main.c` executes them and stays the only state machine. No dependency on `esp_sleep` / `sdcard_bsp` / the sync task
-- [ ] `MENU` state in `main.c`'s `app_state_t`
-- [ ] Render all three cards (Sync, Storage, Sleep) at once; Selection filled, others outlined. Plus a static "hold -> exit" hint
-- [ ] Menu btn steps the Selection, wrapping: `(card + 1) % CARD_COUNT`. `menu_enter()` always resets it to 0 (Sync)
-- [ ] **Menu timeout, ~30s** -> auto-exit to Idle. Timer sets a new `MENU_TIMEOUT_BIT` in the existing `button_group`, so `main.c`'s `xEventGroupWaitBits` loop stays the only place anything happens (no new task). Suspend during Syncing
-- [ ] **Delete the 2s park hold** (ADR 0007 amendment): drop `MENU_SLEEP_BIT`, `MENU_SLEEP_HOLD_MS`, its `iot_button` callback, and the `main.c` branch. Leaves one long-press threshold (1s = exit Menu), and fixes the latent collision where a 2s hold *in* the Menu exits at 1s then parks at 2s
-- [ ] Sleep card: Card action -> `enter_deep_sleep()`
-- [ ] Storage card: free space + # Captures, read-only. `main.c` gathers the values and passes them into `menu`
-- [ ] E-paper refresh: partial per step; **full refresh on Menu exit**, when Idle repaints
+- [x] `menu` component: owns the card ring, index, wrap, timeout, and the `display_bsp` calls. **Reports intents, performs no side effects** (`MENU_INTENT_NONE|SYNC|SLEEP|EXIT`); `main.c` executes them and stays the only state machine. No dependency on `esp_sleep` / `sdcard_bsp` / the sync task
+- [x] `MENU` state in `main.c`'s `app_state_t`
+- [x] Cards: **Sync, Sleep**. Render both at once; Selection filled, other outlined. Plus a static "hold -> exit" hint
+- [x] Menu btn steps the Selection, wrapping: `(card + 1) % CARD_COUNT`. `menu_enter()` always resets it to 0 (Sync)
+- [x] **Menu timeout, ~30s** -> auto-exit to Idle. Timer sets a new `MENU_TIMEOUT_BIT` in the existing `button_group`, so `main.c`'s `xEventGroupWaitBits` loop stays the only place anything happens (no new task). Suspend during Syncing
+- [x] **Delete the 2s park hold** (ADR 0007 amendment): drop `MENU_SLEEP_BIT`, `MENU_SLEEP_HOLD_MS`, its `iot_button` callback, and the `main.c` branch. Leaves one long-press threshold (1s = exit Menu), and fixes the latent collision where a 2s hold *in* the Menu exits at 1s then parks at 2s
+- [x] Sleep card: Card action -> `enter_deep_sleep()`
+- [x] `display_bsp`: **no full-refresh path exists after boot** -- `flush_cb` ends in `EPD_DisplayPart()` unconditionally, and `EPD_DisplayPartBaseImage()` runs once in `display_init`. Add a hook so Menu exit can repaint Idle with a full refresh. Partial per step within the Menu
 - [ ] Battery glyph on Idle screen (read `VBAT_PWR_PIN` GPIO17) -- not a menu card
+- [ ] Deferred: **Storage card** -- free space + # Captures, read-only. Needs new `sdcard_bsp` surface (`esp_vfs_fat_info` for free bytes; a real file count -- `sdcard_scan_max()` is the highest `note_NNNN`, not a count, and drifts on every discarded short Capture). Then `main.c` gathers the values and passes them into `menu_enter()`, so `menu` never depends on `sdcard_bsp`. **Decide first:** does the count mean *all* Captures (snapshot stays valid across a sync) or *unsynced* ones (sync mutates it, so Storage needs a re-render path)?
 - [ ] Deferred: **Recordings card** -- blocked on the playback path. First card needing a second level (its action drills into the Capture list, where Menu btn steps Captures and long-press pops a level instead of exiting)
 - [ ] Rejected: a Record card. Record btn from Idle already captures in one press
 - [ ] Playback path: `esp_codec_dev_write` via `audio_bsp`. Power the speaker amp on first: `Audio_PWR_PIN` (GPIO42) LOW; the codec driver drives PA_CTRL (GPIO46) enable itself. Amp back off after playback
