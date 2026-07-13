@@ -196,14 +196,35 @@ void app_main(void) {
         }
       } else if (state == RECORDING) {
         is_recording = false;
+      } else if (state == MAIN_MENU) {
+        switch (menu_act()) {
+        case MENU_INTENT_SYNC:
+          ESP_LOGI(TAG, "Syncing...");
+          state = IDLE; // TODO: add a SYNC state to show a "Syncing..." screen while the sync is in progress
+          menu_exit();
+          break;
+        case MENU_INTENT_SLEEP:
+          ESP_LOGI(TAG, "Entering deep sleep");
+          enter_deep_sleep();
+          break;
+        case MENU_INTENT_NONE:
+          ESP_LOGW(TAG, "No action for selected menu item");
+          break;
+        }
       }
       // FINALISING: press dropped, no queued restart (see CONTEXT.md).
-    } else if ((uxBits & MENU_EXIT_BIT) != 0) {
-      // TODO: exit Menu toward Idle once Menu mode exists.
-      ESP_LOGI(TAG, "Menu long-press (exit) - Menu mode not yet implemented");
+    } else if (((uxBits & MENU_EXIT_BIT) != 0 ||
+                (uxBits & MENU_TIMEOUT_BIT) != 0) &&
+               state == MAIN_MENU) {
+      menu_exit();
+      state = IDLE;
     } else if ((uxBits & MENU_BUTTON_BIT) != 0) {
-      // TODO: enter Menu from Idle / step to next card once Menu mode exists.
-      ESP_LOGI(TAG, "Menu short-press - Menu mode not yet implemented");
+      if (state == IDLE) {
+        state = MAIN_MENU;
+        menu_enter();
+      } else if (state == MAIN_MENU) {
+        menu_step();
+      }
     }
   }
 }
