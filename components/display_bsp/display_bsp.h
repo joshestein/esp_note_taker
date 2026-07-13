@@ -24,6 +24,12 @@ void display_show_idle(bool full_refresh);
 // outlined. The caller owns the labels and their order.
 void display_show_menu(const char *const *labels, int count, int selected);
 
+// Paint the parked screen, full refresh. Blocks until the panel has finished
+// updating - unlike other paints, which return immediately and let the LVGL
+// task flush later. Call it immediately before cutting power: the panel
+// retains this image for as long as the device stays in deep sleep.
+void display_show_deep_sleep(void);
+
 #ifdef __cplusplus
 }
 #endif

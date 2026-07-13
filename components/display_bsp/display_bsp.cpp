@@ -27,11 +27,15 @@ static const char *TAG = "display_bsp";
 static epaper_driver_display *driver = NULL;
 static SemaphoreHandle_t lvgl_mux = NULL;
 
-// Two screens built once at init and swapped with lv_screen_load, rather than
+// Held so display_show_deep_sleep can force a synchronous refresh through it.
+static lv_display_t *display = NULL;
+
+// Screens built once at init and swapped with lv_screen_load, rather than
 // rebuilt on every flip. Cheaper, and avoids reallocating objects on the flush
 // path.
 static lv_obj_t *idle_screen = NULL;
 static lv_obj_t *recording_screen = NULL;
+static lv_obj_t *deep_sleep_screen = NULL;
 
 // The Menu screen is the one exception to the build-once rule: its cards are
 // rebuilt on every paint, since the Selection moves. Held so the previous one
@@ -177,6 +181,16 @@ static void build_recording_screen(void) {
   lv_obj_align_to(label, circle, LV_ALIGN_OUT_BOTTOM_MID, 0, 12);
 }
 
+static void build_deep_sleep_screen(void) {
+  deep_sleep_screen = lv_obj_create(NULL);
+  set_white_background(deep_sleep_screen);
+
+  lv_obj_t *label = lv_label_create(deep_sleep_screen);
+  lv_label_set_text(label, "Zzz...");
+  lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+  lv_obj_center(label);
+}
+
 esp_err_t display_init(void) {
   // 1. Power the panel. EPD_PWR_PIN is active-low (LOW = on); without this the
   //    driver's BUSY wait never releases.
@@ -212,6 +226,7 @@ esp_err_t display_init(void) {
   // 3. Bring up LVGL and register the display.
   lv_init();
   lv_display_t *disp = lv_display_create(EPD_WIDTH, EPD_HEIGHT);
+  display = disp;
   lv_display_set_flush_cb(disp, flush_cb);
 
   uint8_t *buf = (uint8_t *)heap_caps_malloc(BUFF_SIZE, MALLOC_CAP_SPIRAM);
@@ -239,10 +254,28 @@ esp_err_t display_init(void) {
   if (lvgl_lock(-1)) {
     build_idle_screen();
     build_recording_screen();
+    build_deep_sleep_screen();
     lv_screen_load(idle_screen);
     lvgl_unlock();
   }
   return ESP_OK;
+}
+
+// The one blocking paint. Every other display_show_* hands the screen to LVGL
+// and returns, leaving the flush to the LVGL task -- fine, because something
+// else is always coming. Nothing is coming after this one: the caller cuts power
+// as soon as it returns, so an async flush would park the panel half-written,
+// and that garbage is what persists (e-paper holds its image with no power).
+// lv_refr_now renders and runs flush_cb on THIS task, and flush_cb blocks on the
+// panel's BUSY line, so this returns only once the panel has finished updating.
+// Full refresh, because there is no next refresh to clean up partial ghosting.
+void display_show_deep_sleep(void) {
+  if (lvgl_lock(-1)) {
+    full_refresh_pending = true;
+    lv_screen_load(deep_sleep_screen);
+    lv_refr_now(display);
+    lvgl_unlock();
+  }
 }
 
 void display_show_recording(void) {
