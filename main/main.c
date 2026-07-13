@@ -85,7 +85,7 @@ static void record_task(void *arg) {
 // record task. Returns true on success (caller should move to RECORDING) or
 // false on any failure (state stays IDLE, nothing left dangling).
 static bool start_capture(int *note_counter) {
-  snprintf(path, sizeof(path), "/sdcard/note_%04d.wav", *note_counter + 1);
+  snprintf(path, sizeof(path), NOTE_FILENAME_FMT, *note_counter + 1);
   esp_err_t open_err = wav_open(path);
   if (open_err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to open WAV file: %s", esp_err_to_name(open_err));
