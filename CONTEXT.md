@@ -66,7 +66,7 @@ The device state after a Capture ends, while the WAV header is patched and the f
 The sleep mode used during Idle: CPU paused, RAM retained, GPIO interrupts wake in ~1ms. See ADR 0001. Distinct from Deep Sleep.
 
 ## Deep Sleep
-The parked, lowest-drain state. Entered by a ~2s long press of the Menu Button from Idle. CPU and RAM power down (RAM is lost), so waking is a full cold boot. Both buttons wake it: the Menu Button to Idle, the Record Button straight into a Capture (accepting a clipped opening). See ADR 0007.
+The parked, lowest-drain state. Entered from the Sleep card (menu card). CPU and RAM power down (RAM is lost), so waking is a full cold boot. Both buttons wake it: the Menu Button to Idle, the Record Button straight into a Capture (accepting a clipped opening). See ADR 0007.
 
 ## WAV File
 The storage format for each Capture: PCM, 16kHz, mono, 16-bit. Named by a monotonic sequence in v1: `note_NNNN.wav`, assigned at Capture start. Timestamp naming (`note_YYYYMMDD_HHMMSS.wav`) is deferred until the clock is trustworthy. The header's length fields are patched on close, so a power loss mid-Capture leaves that one file unplayable.
