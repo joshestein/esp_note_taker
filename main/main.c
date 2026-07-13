@@ -183,7 +183,7 @@ void app_main(void) {
       }
 
       state = IDLE;
-      display_show_idle();
+      display_show_idle(false);
     } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Record button pressed");
       if (state == IDLE) {
