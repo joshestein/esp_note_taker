@@ -17,6 +17,7 @@ static const char *TAG = "main";
 
 typedef enum {
   IDLE = 0,
+  MAIN_MENU,
   RECORDING,
   FINALISING,
 } app_state_t;
