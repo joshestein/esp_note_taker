@@ -109,6 +109,9 @@ The PCF85063 real-time clock (I2C 0x51). Intended timestamp source for WAV namin
 
 Reasoning trimmed from the glossary that isn't captured in any ADR. Each is a small ADR waiting to be written, or a note to fold into an existing one. Not glossary content -- parked here so it isn't lost.
 
-- **One-card stepping over a scrolling list:** chosen because e-paper refreshes slowly and only a single card region needs repainting per step, versus repainting a whole multi-item list. (Candidate: fold into ADR 0005.)
+- **All Menu cards visible at once, with a filled Selection:** a whole-screen partial refresh is ~0.3s whether one card or three change, so showing all three costs nothing over one-at-a-time, and the wearer can see where the Selection is instead of stepping blind. The old "only repaint one card region" reasoning still holds for the unbounded Recordings list, which is why visibility is per-level. (Candidate: fold into ADR 0005.)
+- **No confirm step on any Card action:** possible only because no destructive action lives on the device (see Storage). Keeps the Menu flat.
+- **Selection resets to Sync on Menu entry:** a sticky Selection could open the Menu pre-armed on Sleep, the one card whose mis-press costs a cold boot.
+- **Full refresh on Menu exit, partials within it:** the ~2s flash lands when the wearer is walking away, and guarantees Idle -- the screen shown 99% of the time -- is always cleanly written.
 - **WAV mono:** mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage.
 - **Recording Indicator over haptic/audio cues:** LED chosen for low power and simplicity.
