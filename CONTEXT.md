@@ -62,6 +62,9 @@ The device state during an active Capture: audio is read from the codec and writ
 ## Finalizing
 The device state after a Capture ends, while the WAV header is patched and the file closed. A broken Capture (failed write, or a task that never started) is `remove()`d here, not saved. Reached only when the record task signals it has stopped (see ADR 0004). Button presses during Finalizing are dropped, not queued.
 
+## Syncing
+The device state during an active Sync: the radio is on and a dedicated sync task runs the Sync handshake (connect, mDNS resolve, uploads, downloads, disconnect) while the task signals its progress and completion back to the main loop. A top-level peer of Recording State, entered from the Sync card and returning to it with a result summary ("Synced N up, M down" or a failure). Mutually exclusive with recording; button presses are dropped for its duration (no cancel in v1). See ADR 0003, ADR 0006.
+
 ## Light Sleep
 The sleep mode used during Idle: CPU paused, RAM retained, GPIO interrupts wake in ~1ms. See ADR 0001. Distinct from Deep Sleep.
 
