@@ -4,7 +4,7 @@
 A single audio recording session. Begins on a Record Button press and ends on the next. Stored as one WAV file on the SD card. Discarded if shorter than 2 seconds.
 
 ## Record Button
-The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture; a second press ends it.
+The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture; a second press ends it. In the Menu it is repurposed to "act on this card" (Card action).
 
 ## Menu Button
 The PWR button (GPIO18); the code names it `MENU_BUTTON`. Behaviors, all context-dependent:
