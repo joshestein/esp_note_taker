@@ -33,6 +33,10 @@ static SemaphoreHandle_t lvgl_mux = NULL;
 static lv_obj_t *idle_screen = NULL;
 static lv_obj_t *recording_screen = NULL;
 
+// Read and cleared by flush_cb. Set under the LVGL lock before the screen load
+// that triggers the flush -- the flush itself runs later, on the LVGL task.
+static bool full_refresh_pending = false;
+
 static bool lvgl_lock(int timeout_ms) {
   TickType_t ticks =
       (timeout_ms == -1) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
@@ -189,9 +193,14 @@ void display_show_recording(void) {
   }
 }
 
-void display_show_idle(void) {
+void display_show_idle(bool full_refresh) {
   if (lvgl_lock(-1)) {
+    full_refresh_pending = full_refresh;
     lv_screen_load(idle_screen);
+    lv_obj_invalidate(idle_screen);
+    lvgl_unlock();
+  }
+}
     lvgl_unlock();
   }
 }
