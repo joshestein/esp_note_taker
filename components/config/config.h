@@ -11,6 +11,11 @@
 
 #define SAMPLE_RATE 16000
 
+#define SD_MOUNT_POINT "/sdcard"
+#define SYNCED_DIR SD_MOUNT_POINT "/synced"
+#define TRANSCRIPTS_DIR SD_MOUNT_POINT "/transcripts"
+#define NOTE_FILENAME_FMT SD_MOUNT_POINT "/note_%04d.wav"
+
 #define I2C_SDA_PIN GPIO_NUM_47
 #define I2C_SCL_PIN GPIO_NUM_48
 #define I2S_NUM 0
