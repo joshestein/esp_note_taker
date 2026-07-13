@@ -9,6 +9,7 @@
 #define MENU_BUTTON_BIT (1 << 1)   // Menu Button short press (navigation)
 #define CAPTURE_ENDED_BIT (1 << 2) // not set by a button, used by the recording task when it finishes
 #define MENU_EXIT_BIT (1 << 3)     // Menu Button long press ~1s: exit Menu toward Idle
+#define MENU_TIMEOUT_BIT (1 << 4)  // not set by a button, set by the menu's inactivity timer
 
 esp_err_t button_init(EventGroupHandle_t *out_button_group);
 
