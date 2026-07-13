@@ -57,7 +57,19 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
       buffer++;
     }
   }
-  driver->EPD_DisplayPart();
+  if (full_refresh_pending) {
+    full_refresh_pending = false;
+    // EPD_Init_Partial() left the panel on the partial LUT for good, so
+    // EPD_DisplayPartBaseImage() alone would drive the full update sequence
+    // through a partial waveform -- no flash, no ghost clear. Reload the full
+    // LUT, push (writing both the new-image and old-image RAMs, which also
+    // re-establishes the base the next partials diff against), then swap back.
+    driver->EPD_Init();
+    driver->EPD_DisplayPartBaseImage();
+    driver->EPD_Init_Partial();
+  } else {
+    driver->EPD_DisplayPart();
+  }
   lv_disp_flush_ready(disp);
 }
 
