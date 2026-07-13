@@ -4,24 +4,32 @@
 A single audio recording session. Begins on a Record Button press and ends on the next. Stored as one WAV file on the SD card. Discarded if shorter than 2 seconds.
 
 ## Record Button
-The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture; a second press ends it. In the Menu it is repurposed to "act on this card" (Card action).
+The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture; a second press ends it. In the Menu it performs the Card action.
 
 ## Menu Button
 The PWR button (GPIO18); the code names it `MENU_BUTTON`. Behaviors, all context-dependent:
 - Short press from Idle: enter the Menu.
-- Short press in Menu: step to the next card (One-card stepping).
-- Long press (~1s) in Menu: exit back toward Idle.
-- Long press (~2s) from Idle: enter Deep Sleep (see ADR 0007).
+- Short press in Menu: One-card stepping.
+- Long press (~1s) in Menu: exit back toward Idle. This is the only long-press meaning; no hold parks the device (see ADR 0007).
 - During a Capture: ignored (dropped, not queued).
 
 ## Menu
-A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to "act on this card." Entered from Idle via a short Menu Button press. Navigated by One-card stepping. Top-level cards: Recordings, Sync, Storage.
+A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to the Card action. Entered from Idle via a short Menu Button press. Cards: Sync, Storage, Sleep, all on screen at once. Flat: every card is a leaf with one action; no sub-lists, no confirm steps. (Recordings is a designed-but-unbuilt fourth card, and the first that would need a second level.)
 
 ## One-card stepping
-The Menu's navigation model: exactly one item is on screen at a time, and the Menu Button steps to the next.
+A Menu Button press advances the Selection by exactly one card. Names the step granularity, not the visibility: the Menu shows all cards at once, while the Recordings list (unbounded) would show one Capture at a time. Cards form a ring -- stepping past the last wraps to the first, and never leaves the Menu.
+
+## Selection
+The one card the Record Button will act on. Rendered filled; unselected cards are outlines. Never sticky: entering the Menu always resets it to Sync.
+
+## Menu timeout
+~30s with no button press auto-exits the Menu to Idle. Suspended during Syncing.
+
+## Card action
+What the Record Button does on the Selection. Fires immediately -- no confirmation step. Sync: run the Sync handshake. Storage: none (read-only). Sleep: enter Deep Sleep.
 
 ## Recordings (menu card)
-The Menu card listing existing Captures newest-first, stepped one at a time. The Record Button plays the shown Capture through the speaker.
+**Designed, not built** (depends on the unbuilt playback path). The Menu card listing existing Captures newest-first, one at a time. The Record Button plays the shown Capture through the speaker.
 
 ## Sync (menu card)
 The Menu card that connects to Wi-Fi, pushes Captures to the Companion on the LAN, and pulls Transcripts back. The device's RTC is set here from the Companion's HTTP `Date` header. See ADR 0003, ADR 0006.
@@ -48,7 +56,10 @@ A shared bearer token, hardcoded on both sides, sent as `Authorization: Bearer <
 `/sdcard/synced/`. A Capture confirmed-received by the Companion is `rename()`d here from the record folder. Captures are kept, not deleted, after sync. Freeing space is a manual action under the Storage card. See ADR 0003.
 
 ## Storage (menu card)
-The Menu card showing card status: free space, number of Captures, and possibly an erase-all action.
+The Menu card showing free space and number of Captures. Read-only: no Card action. Erasing Captures on the device is a **non-goal** -- freeing space is done on the Companion. (Named for the concern, not the medium: the SD Card is the hardware, Storage is "how full am I.")
+
+## Sleep (menu card)
+The Menu card whose Card action enters Deep Sleep. The only way to park the device. See ADR 0007.
 
 ## Battery glyph
 An always-visible battery-level glyph on the Idle screen (read via `VBAT_PWR_PIN`, GPIO17), not a Menu card.
