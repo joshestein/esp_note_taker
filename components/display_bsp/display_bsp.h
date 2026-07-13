@@ -2,6 +2,7 @@
 #define DISPLAY_BSP_H
 
 #include "esp_err.h"
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,8 +17,8 @@ esp_err_t display_init(void);
 // Paint the Recording Screen (filled circle + "recording"), partial refresh.
 void display_show_recording(void);
 
-// Paint the minimal Idle screen, partial refresh.
-void display_show_idle(void);
+// Paint the minimal Idle screen. Defaults to a partial refresh, but a full refresh can be requested
+void display_show_idle(bool full_refresh);
 
 #ifdef __cplusplus
 }
