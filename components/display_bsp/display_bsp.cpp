@@ -33,6 +33,11 @@ static SemaphoreHandle_t lvgl_mux = NULL;
 static lv_obj_t *idle_screen = NULL;
 static lv_obj_t *recording_screen = NULL;
 
+// The Menu screen is the one exception to the build-once rule: its cards are
+// rebuilt on every paint, since the Selection moves. Held so the previous one
+// can be freed after the new one is loaded.
+static lv_obj_t *menu_screen = NULL;
+
 // Read and cleared by flush_cb. Set under the LVGL lock before the screen load
 // that triggers the flush -- the flush itself runs later, on the LVGL task.
 static bool full_refresh_pending = false;
@@ -109,6 +114,48 @@ static void build_idle_screen(void) {
   lv_label_set_text(label, "ready");
   lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
   lv_obj_center(label);
+}
+
+// Unlike the Idle and Recording screens, this one is rebuilt on every paint --
+// the Selection moves, so the fill/outline split changes. Returns a detached
+// screen; the caller loads it and frees the previous one.
+static lv_obj_t *build_menu_screen(const char *const *labels, int count,
+                                   int selected) {
+  lv_obj_t *scr = lv_obj_create(NULL);
+  set_white_background(scr);
+  lv_obj_set_style_border_width(scr, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(scr, 12, LV_PART_MAIN);
+  lv_obj_set_style_pad_row(scr, 10, LV_PART_MAIN);
+  lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
+  lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                        LV_FLEX_ALIGN_CENTER);
+
+  for (int i = 0; i < count; i++) {
+    const bool is_selected = (i == selected);
+
+    lv_obj_t *card = lv_obj_create(scr);
+    lv_obj_set_size(card, 160, 44);
+    lv_obj_set_style_radius(card, 6, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(
+        card, is_selected ? lv_color_black() : lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(card, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_border_width(card, is_selected ? 0 : 2, LV_PART_MAIN);
+    lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF);
+
+    lv_obj_t *label = lv_label_create(card);
+    lv_label_set_text(label, labels[i]);
+    lv_obj_set_style_text_color(
+        label, is_selected ? lv_color_white() : lv_color_black(), LV_PART_MAIN);
+    lv_obj_center(label);
+  }
+
+  lv_obj_t *hint = lv_label_create(scr);
+  lv_label_set_text(hint, "hold to exit");
+  lv_obj_set_style_text_color(hint, lv_color_black(), LV_PART_MAIN);
+
+  return scr;
 }
 
 static void build_recording_screen(void) {
@@ -213,6 +260,17 @@ void display_show_idle(bool full_refresh) {
     lvgl_unlock();
   }
 }
+
+void display_show_menu(const char *const *labels, int count, int selected) {
+  if (lvgl_lock(-1)) {
+    // Load the new screen before freeing the old one -- the old one is still
+    // the active screen until lv_screen_load returns.
+    lv_obj_t *previous = menu_screen;
+    menu_screen = build_menu_screen(labels, count, selected);
+    lv_screen_load(menu_screen);
+    if (previous != NULL) {
+      lv_obj_delete(previous);
+    }
     lvgl_unlock();
   }
 }
