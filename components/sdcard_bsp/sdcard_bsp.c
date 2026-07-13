@@ -1,4 +1,5 @@
 #include "sdcard_bsp.h"
+#include "config.h"
 #include "dirent.h"
 #include "driver/gpio.h"
 #include "driver/sdmmc_host.h"
@@ -7,6 +8,9 @@
 #include "esp_vfs_fat.h"
 #include "freertos/FreeRTOS.h"
 #include "sdmmc_cmd.h"
+#include <errno.h>
+#include <string.h>
+#include <sys/stat.h>
 
 static const char *TAG = "sdcard_bsp";
 
@@ -14,9 +18,13 @@ static const char *TAG = "sdcard_bsp";
 #define SDMMC_CLK_PIN GPIO_NUM_39
 #define SDMMC_CMD_PIN GPIO_NUM_41
 
-#define SDlist "/sdcard" // Directory, similar to a standard
-
 sdmmc_card_t *card_host = NULL;
+
+static void ensure_dir(const char *path) {
+  if (mkdir(path, 0777) != 0 && errno != EEXIST) {
+    ESP_LOGW(TAG, "Failed to create %s: %s", path, strerror(errno));
+  }
+}
 
 esp_err_t sdcard_init(void) {
   esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
@@ -32,20 +40,27 @@ esp_err_t sdcard_init(void) {
   slot_config.cmd = SDMMC_CMD_PIN;
   slot_config.d0 = SDMMC_D0_PIN;
 
-  return esp_vfs_fat_sdmmc_mount(SDlist, &host, &slot_config, &mount_config,
-                                 &card_host);
-}
-
-int sdcard_scan_max(void) {
-  DIR *dir = opendir(SDlist);
-  struct dirent *entry;
-  int max = 0;
-
-  if (dir == NULL) {
-    ESP_LOGE(TAG, "Failed to open %s to scan for existing recordings", SDlist);
-    abort();
+  esp_err_t err = esp_vfs_fat_sdmmc_mount(SD_MOUNT_POINT, &host, &slot_config,
+                                          &mount_config, &card_host);
+  if (err != ESP_OK) {
+    return err;
   }
 
+  ensure_dir(SYNCED_DIR);
+  ensure_dir(TRANSCRIPTS_DIR);
+  return ESP_OK;
+}
+
+// Highest note_NNNN found in `path`, or 0.
+static int scan_dir_max(const char *path) {
+  DIR *dir = opendir(path);
+  if (dir == NULL) {
+    ESP_LOGE(TAG, "Failed to open %s to scan for existing recordings", path);
+    return 0;
+  }
+
+  int max = 0;
+  struct dirent *entry;
   while ((entry = readdir(dir)) != NULL) {
     int num;
     if (sscanf(entry->d_name, "note_%d.wav", &num) == 1) {
