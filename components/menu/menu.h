@@ -4,7 +4,6 @@
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
-#include <stdint.h>
 
 typedef enum {
   MENU_INTENT_NONE = 0,
