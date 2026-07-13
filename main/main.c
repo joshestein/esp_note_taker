@@ -115,6 +115,7 @@ static bool start_capture(int *note_counter) {
 // return.
 static void enter_deep_sleep(void) {
   ESP_LOGI(TAG, "Parking: entering deep sleep");
+  display_show_deep_sleep();
   // Wake on either button (active low). _wakeup_io configures the RTC pulls
   // itself (idling the pins high, held through RTC_PERIPH power-down), so no
   // manual rtc_gpio setup is needed.
