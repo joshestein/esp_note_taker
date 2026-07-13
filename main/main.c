@@ -7,6 +7,7 @@
 #include "esp_log.h"
 #include "esp_sleep.h"
 #include "freertos/idf_additions.h"
+#include "menu.h"
 #include "sdcard_bsp.h"
 #include "wav_writer.h"
 #include <stdbool.h>
@@ -133,6 +134,7 @@ void app_main(void) {
       (esp_sleep_get_ext1_wakeup_status() & (1ULL << RECORD_BUTTON)) != 0;
 
   ESP_ERROR_CHECK(button_init(&button_group));
+  ESP_ERROR_CHECK(menu_init(button_group));
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
   ESP_ERROR_CHECK(audio_bsp_init());
