@@ -25,7 +25,7 @@ static volatile bool capture_ok = false;
 static char path[32];
 static EventGroupHandle_t button_group;
 
-static void init_led(void) {
+static esp_err_t init_led(void) {
   gpio_config_t io_conf = {
       .pin_bit_mask = (1ULL << LED_PIN),
       .mode = GPIO_MODE_OUTPUT,
@@ -33,7 +33,7 @@ static void init_led(void) {
       .pull_down_en = GPIO_PULLDOWN_DISABLE,
       .intr_type = GPIO_INTR_DISABLE,
   };
-  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  return gpio_config(&io_conf);
 }
 
 static void record_task(void *arg) {
@@ -136,7 +136,7 @@ void app_main(void) {
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
   ESP_ERROR_CHECK(audio_bsp_init());
-  init_led();
+  ESP_ERROR_CHECK(init_led());
   gpio_set_level(LED_PIN, 1); // LED starts off
 
   // On a Record-Button wake, start the Capture immediately without waiting for
