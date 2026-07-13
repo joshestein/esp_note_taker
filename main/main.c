@@ -139,7 +139,8 @@ void app_main(void) {
   init_led();
   gpio_set_level(LED_PIN, 1); // LED starts off
 
-  // On a Record-Button wake, start the Capture immediately without waiting for display initialisation
+  // On a Record-Button wake, start the Capture immediately without waiting for
+  // display initialisation
   if (wake_to_record && start_capture(&note_counter)) {
     state = RECORDING;
   }
@@ -157,8 +158,7 @@ void app_main(void) {
   for (;;) {
     EventBits_t uxBits = xEventGroupWaitBits(
         button_group,
-        RECORD_BUTTON_BIT | MENU_BUTTON_BIT | MENU_EXIT_BIT | MENU_SLEEP_BIT |
-            CAPTURE_ENDED_BIT,
+        RECORD_BUTTON_BIT | MENU_BUTTON_BIT | MENU_EXIT_BIT | CAPTURE_ENDED_BIT,
         pdTRUE,  /* Clear before returning. */
         pdFALSE, /* Don't wait for both bits, either bit will do. */
         portMAX_DELAY);
@@ -195,12 +195,6 @@ void app_main(void) {
         is_recording = false;
       }
       // FINALISING: press dropped, no queued restart (see CONTEXT.md).
-    } else if ((uxBits & MENU_SLEEP_BIT) != 0) {
-      // Checked before MENU_EXIT_BIT: a 2s hold trips the 1s EXIT threshold too.
-      // Deep Sleep only from Idle; a Menu press during a Capture is ignored.
-      if (state == IDLE) {
-        enter_deep_sleep(); // does not return
-      }
     } else if ((uxBits & MENU_EXIT_BIT) != 0) {
       // TODO: exit Menu toward Idle once Menu mode exists.
       ESP_LOGI(TAG, "Menu long-press (exit) - Menu mode not yet implemented");
