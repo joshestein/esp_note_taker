@@ -122,9 +122,10 @@ static esp_err_t wifi_connect(void) {
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
 
   // Powers the radio.
-  err = esp_wifi_start();
+  esp_err_t err = esp_wifi_start();
   if (err != ESP_OK) {
     esp_wifi_deinit();
+    ESP_LOGE(TAG, "wifi start failed: %s", esp_err_to_name(err));
     return err;
   }
 
