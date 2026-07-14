@@ -1,6 +1,5 @@
 #include "sync.h"
 #include "button_input.h"
-#include "cJSON.h"
 #include "config.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
@@ -454,19 +453,30 @@ static void download_transcripts(esp_http_client_handle_t client,
   }
   chunk[read] = '\0';
 
-  cJSON *list = cJSON_Parse((const char *)chunk);
-  if (list == NULL || !cJSON_IsArray(list)) {
-    ESP_LOGE(TAG, "Transcript list is not a JSON array");
-    cJSON_Delete(list);
-    return;
-  }
+  // The body is a bare array of quoted filenames -- ["note_0003.txt",...] --
+  // and the names are note_NNNN.txt: no escapes, no commas, no unicode. So "the
+  // strings are what sits between quote pairs" is a complete description of the
+  // format, and a JSON parser would be doing nothing a scan cannot.
+  char *cursor = (char *)chunk;
+  for (;;) {
+    char *start = strchr(cursor, '"');
+    if (start == NULL) {
+      break;
+    }
+    char *end = strchr(start + 1, '"');
+    if (end == NULL) {
+      break;
+    }
+    *end = '\0';
+    const char *name = start + 1;
+    cursor = end + 1;
 
-  cJSON *item;
-  cJSON_ArrayForEach(item, list) {
-    if (!cJSON_IsString(item) || item->valuestring == NULL) {
+    // The name arrives over the network and becomes a path below. Refuse
+    // anything that could climb out of TRANSCRIPTS_DIR.
+    if (strchr(name, '/') != NULL || strstr(name, "..") != NULL) {
+      ESP_LOGW(TAG, "Refusing suspicious transcript name");
       continue;
     }
-    const char *name = item->valuestring;
     if (have_transcript(name)) {
       continue;
     }
@@ -478,8 +488,6 @@ static void download_transcripts(esp_http_client_handle_t client,
     // ours yet. It stays on the Companion and we ask again next sync.
     xEventGroupSetBits(button_group, SYNC_PROGRESS_BIT);
   }
-
-  cJSON_Delete(list);
 }
 
 static void sync_task(void *arg) {
