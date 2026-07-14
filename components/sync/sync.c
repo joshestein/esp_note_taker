@@ -343,7 +343,8 @@ static void clean_stray_parts(void) {
   while ((entry = readdir(dir)) != NULL) {
     const char *dot = strrchr(entry->d_name, '.');
     if (dot != NULL && strcmp(dot, ".part") == 0) {
-      char path[80];
+      // Sized from the types, not guessed
+      char path[sizeof(TRANSCRIPTS_DIR) + 1 + sizeof(entry->d_name)];
       snprintf(path, sizeof(path), "%s/%s", TRANSCRIPTS_DIR, entry->d_name);
       ESP_LOGW(TAG, "Removing stray %s", path);
       remove(path);
