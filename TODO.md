@@ -23,6 +23,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## State machine (replace stub in `main.c`)
 
+- [x] `app_events` component: owns the one FreeRTOS event group (ADR 0004) and every bit in it. The bits used to live in `button_input.h`, where four of the seven were annotated "not set by a button" and `sync` had to depend on a GPIO driver just to name an event. Producers call `app_events_set()`; `main.c` calls `app_events_wait()`. No component passes the group handle to another any more
 - [x] Idle -> Recording: LED on, codec on, open WAV, start record task
 - [x] Recording -> Finalizing: task signals end via `CAPTURE_ENDED_BIT`; unified exit for user-stop / mid-record error / alloc-fail. See ADR 0004
 - [x] Finalizing: **drop** button presses (no queued restart), then -> Idle
@@ -62,7 +63,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] `MENU` state in `main.c`'s `app_state_t`
 - [x] Cards: **Sync, Sleep**. Render both at once; Selection filled, other outlined. Plus a static "hold -> exit" hint
 - [x] Menu btn steps the Selection, wrapping: `(card + 1) % CARD_COUNT`. `menu_enter()` always resets it to 0 (Sync)
-- [x] **Menu timeout, ~30s** -> auto-exit to Idle. Timer sets a new `MENU_TIMEOUT_BIT` in the existing `button_group`, so `main.c`'s `xEventGroupWaitBits` loop stays the only place anything happens (no new task). Suspend during Syncing
+- [x] **Menu timeout, ~30s** -> auto-exit to Idle. Timer sets `MENU_TIMEOUT_BIT` in the shared app event group, so `main.c`'s wait loop stays the only place anything happens (no new task). Moot during Syncing: a Sync closes the Menu on the way in
 - [x] **Delete the 2s park hold** (ADR 0007 amendment): drop `MENU_SLEEP_BIT`, `MENU_SLEEP_HOLD_MS`, its `iot_button` callback, and the `main.c` branch. Leaves one long-press threshold (1s = exit Menu), and fixes the latent collision where a 2s hold *in* the Menu exits at 1s then parks at 2s
 - [x] Sleep card: Card action -> `enter_deep_sleep()`
 - [x] `display_bsp`: **no full-refresh path exists after boot** -- `flush_cb` ends in `EPD_DisplayPart()` unconditionally, and `EPD_DisplayPartBaseImage()` runs once in `display_init`. Add a hook so Menu exit can repaint Idle with a full refresh. Partial per step within the Menu
@@ -91,7 +92,8 @@ Implements the client side of `docs/sync-protocol.md` (reasoning in ADR 0003 / 0
 - [x] Path constants into `config.h` (`SD_MOUNT_POINT`, `SYNCED_DIR`, `TRANSCRIPTS_DIR`, `NOTE_FILENAME_FMT`) -- `main.c` and `sync` must not each hardcode `/sdcard/...`; a disagreement means uploads that never advance
 - [x] `mkdir()` `/sdcard/synced/` and `/sdcard/transcripts/` (ignore `EEXIST`). **On a fresh card they don't exist**, so every `rename()` fails, every Capture stays unsynced, and the device re-uploads everything on every sync while reporting success
 - [x] `sync` component: does its **own POSIX I/O** on the mounted VFS (`opendir`/`fopen`/`rename`) -- `/sdcard` is a filesystem once mounted, so no `REQUIRES sdcard_bsp`. And no `REQUIRES display_bsp`: it reports, `main.c` paints (mirrors `menu` and `record_task`)
-- [x] Dedicated **sync task** (mirror `record_task`): owns connect->transfer->disconnect. Writes phase + counts into a shared struct and signals `SYNC_PROGRESS_BIT` / `SYNC_ENDED_BIT` in the existing `button_group`; `main.c` wakes, reads, paints
+- [x] Dedicated **sync task** (mirror `record_task`): owns connect->transfer->disconnect. Writes phase + counts into a shared struct and signals `SYNC_PROGRESS_BIT` / `SYNC_ENDED_BIT` in the shared app event group; `main.c` wakes, reads, paints
+  - `SYNC_PROGRESS_BIT` fires on **phase change only**. Signalling per file repainted the same words up to 64x per sync -- a full 200x200 render, SPI blit, and panel busy-wait each time, with the radio on. If a live counter is ever wanted (`7/20`), the text has to change too, and `display_show_message` should skip the repaint when the string is unchanged
 - [x] **Wi-Fi init is lazy** -- `nvs_flash_init` / `esp_netif` / event loop / `esp_wifi_init` all inside the sync task, torn down at the end. **Not at boot:** `main.c` starts a Capture *before* `display_init()` on a Record-Button wake from Deep Sleep, so anything added to boot is audio lost off the front of every memo, to save a second on a rare manual sync
 - [x] Session envelope: `wifi connect -> mDNS resolve -> uploads (oldest-first) -> downloads -> wifi stop`. Bounded timeouts (connect ~10s, mDNS ~3s); no hang
   - Radio teardown needs `explicit_stop_requested`: `esp_wifi_stop()` raises `STA_DISCONNECTED` exactly like a dropped link, so without the flag the handler reconnects into the stop it is in the middle of performing
@@ -115,6 +117,20 @@ Implements the client side of `docs/sync-protocol.md` (reasoning in ADR 0003 / 0
 - [ ] Deferred (Tier 2): TLS -- encrypt body + pinned-cert Companion verify. Additive over the token
 - [ ] Deferred: throttled live counter (`7/20`) instead of phase-level
 - [ ] Deferred: between-file cancel (Menu sets a flag; current file finishes its commit, then bail clean to Menu, never mid-`POST`)
+
+## Refactors
+
+- [ ] **`sdcard_bsp` owns the card layout; `sync` becomes protocol-only.** Today `sync.c` opens `SD_MOUNT_POINT` itself, hand-builds `/synced/` and `/transcripts/` paths at five sites (with five different buffer sizes), and performs the `rename()` that *is* the domain move "file this Capture into the Synced folder" -- while `sdcard_bsp` separately enumerates the same directories. Neither component owns the layout; they agree by convention through `config.h` macros, and they have already broken each other once (the counter collapsed after a sync, because `sync` moves the files `sdcard_bsp` counts -- the comment now in `sdcard_scan_max()` is the scar). Steps:
+  1. Move `SD_MOUNT_POINT` / `SYNCED_DIR` / `TRANSCRIPTS_DIR` / `NOTE_FILENAME_FMT` out of `config.h` (which goes back to being the board pin map) and into `sdcard_bsp.h`
+  2. Give `sdcard_bsp` the domain surface: `sdcard_list_unsynced(names, max)`, `sdcard_mark_synced(name)`, `sdcard_has_transcript(name)`, `sdcard_open_transcript_part(name)` / `sdcard_commit_transcript(name)` / `sdcard_discard_transcript_part(name)`, `sdcard_clean_stray_parts()`. Path-building and the `.part` atomicity dance live behind these, once
+  3. One owner of the Capture-name grammar, there too: `capture_name_valid(name)` as a **positive** match on `note_NNNN.{wav,txt}`, replacing the `strlen`/`strchr('/')`/`strstr("..")` blacklist `sync.c` uses on names arriving over the wire. The grammar is currently spelled three ways (`NOTE_FILENAME_FMT`, a literal `sscanf` in `sdcard_bsp.c`, the blacklist in `sync.c`) -- and the deferred RTC rename to `note_YYYYMMDD_HHMMSS.wav` has to touch all three
+  4. `sync.c` then calls those and builds no path; `components/sync/CMakeLists.txt` gains `REQUIRES sdcard_bsp`. That it has no such dependency today, while doing all this file work, is the tell
+  5. Fold `clean_stray_parts()`'s walk and `have_transcript()`'s per-name lookup into a single `readdir` pass at download start (today: one directory traversal per listed Transcript, on top of the one already done)
+- [ ] **Capture counter into NVS.** `sdcard_scan_max()` walks `/sdcard` *and* `/sdcard/synced` before `start_capture()` on the Record-Button wake path, and `synced/` grows without bound -- so the scan sits in front of the "instant Capture" promise and gets slower for the life of the device. Persist the last number in NVS (already initialised for Wi-Fi), and scan only as a cold-boot fallback (which also keeps the card-swap self-heal).
+- [ ] Reconcile **Finalizing** (CONTEXT.md) with the code: the `FINALISING` enum member was never assigned, so it is gone. The work still happens (inline in the `CAPTURE_ENDED_BIT` branch) and the drop-presses rule is enforced by the `arrived_in` guard. Either say that in CONTEXT.md, or make it a real state.
+- [ ] `display_bsp`: extract `swap_screen(slot, fresh, full_refresh)` -- `display_show_message` and `display_show_menu` repeat the same build/load/free dance, and the load-before-free ordering constraint is commented in only one of them. Same file, the "create a black label" idiom is copy-pasted six times (`set_white_background` is the pattern to follow)
+- [ ] `menu.c`: one table, `struct { const char *label; menu_intent_t intent; } CARDS[]`, replacing `CARD_LABELS[]` + the index-aligned `switch (selection)`. Adding the Storage card otherwise means editing two lists that must stay in step. `MENU_INTENT_NONE` and its dead `default:` go with it
+- [ ] `companion/app.py`: `create_app()` factory -- the Whisper model load, the worker thread, and `enqueue_pending()` are import-time side effects today, so the Flask reloader does them twice and the module cannot be imported by a test. Also `capture_path()`/`transcript_path()`/`part_path()` helpers: the `.part`-then-`replace` commit, which is the protocol invariant the design rests on, is currently spelled two different ways
 
 ## Deferred
 
