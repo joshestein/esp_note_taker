@@ -204,18 +204,12 @@ void app_main(void) {
   }
 
   for (;;) {
-    EventBits_t uxBits = xEventGroupWaitBits(
-        button_group,
-        RECORD_BUTTON_BIT | MENU_BUTTON_BIT | MENU_EXIT_BIT | CAPTURE_ENDED_BIT |
-            MENU_TIMEOUT_BIT | SYNC_PROGRESS_BIT | SYNC_ENDED_BIT,
-        pdTRUE,  /* Clear before returning. */
-        pdFALSE, /* Don't wait for both bits, either bit will do. */
-        portMAX_DELAY);
+    const EventBits_t uxBits = app_events_wait();
 
     const app_state_t arrived_in = state;
 
     // The state-changing events are each on their own `if`, never an `else if`
-    // chain: xEventGroupWaitBits clears every bit it returns, so a chain would
+    // chain: app_events_wait clears every bit it returns, so a chain would
     // consume bits it never ran a branch for.
     if ((uxBits & CAPTURE_ENDED_BIT) && (state == RECORDING)) {
       is_recording = false;
