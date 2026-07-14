@@ -473,8 +473,11 @@ static void download_transcripts(esp_http_client_handle_t client,
     cursor = end + 1;
 
     // The name arrives over the network and becomes a path below. Refuse
-    // anything that could climb out of TRANSCRIPTS_DIR.
-    if (strchr(name, '/') != NULL || strstr(name, "..") != NULL) {
+    // anything that could climb out of TRANSCRIPTS_DIR, and anything long
+    // enough to truncate into a path buffer (two long names could otherwise
+    // truncate to the same file).
+    if (strlen(name) >= MAX_NAME_LEN || strchr(name, '/') != NULL ||
+        strstr(name, "..") != NULL) {
       ESP_LOGW(TAG, "Refusing suspicious transcript name");
       continue;
     }
