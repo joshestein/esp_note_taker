@@ -2,3 +2,5 @@ build/
 managed_components/
 sdkconfig
 sdkconfig.old
+
+wifi_secrets.h
