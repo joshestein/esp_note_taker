@@ -211,6 +211,11 @@ void app_main(void) {
         pdFALSE, /* Don't wait for both bits, either bit will do. */
         portMAX_DELAY);
 
+    const app_state_t arrived_in = state;
+
+    // The state-changing events are each on their own `if`, never an `else if`
+    // chain: xEventGroupWaitBits clears every bit it returns, so a chain would
+    // consume bits it never ran a branch for.
     if ((uxBits & CAPTURE_ENDED_BIT) && (state == RECORDING)) {
       is_recording = false;
 
@@ -232,7 +237,33 @@ void app_main(void) {
 
       state = IDLE;
       display_show_idle(false);
-    } else if ((uxBits & RECORD_BUTTON_BIT) != 0) {
+    }
+
+    if ((uxBits & SYNC_ENDED_BIT) && (state == SYNCING)) {
+      char summary[48];
+      sync_result_text(sync_get_result(), summary, sizeof(summary));
+      // Full refresh: this screen persists until the next button press, and it
+      // clears the ghosting left by the Menu's and the phases' partials.
+      display_show_message(summary, true);
+      state = IDLE;
+    } else if ((uxBits & SYNC_PROGRESS_BIT) && (state == SYNCING)) {
+      display_show_message(sync_phase_text(sync_get_result().phase), false);
+    }
+
+    if (((uxBits & MENU_EXIT_BIT) != 0 || (uxBits & MENU_TIMEOUT_BIT) != 0) &&
+        (state == MAIN_MENU)) {
+      menu_exit();
+      display_show_idle(true);
+      state = IDLE;
+    }
+
+    // A press that arrived in the same tick as one of the transitions was made
+    // while the old state still held 
+    if (state != arrived_in) {
+      continue;
+    }
+
+    if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Record button pressed");
       if (state == IDLE) {
         if (start_capture(&note_counter)) {
@@ -263,21 +294,6 @@ void app_main(void) {
         }
       }
       // FINALISING and SYNCING: press dropped (no sync cancel in v1).
-    } else if ((uxBits & SYNC_PROGRESS_BIT) && (state == SYNCING)) {
-      display_show_message(sync_phase_text(sync_get_result().phase), false);
-    } else if ((uxBits & SYNC_ENDED_BIT) && (state == SYNCING)) {
-      char summary[48];
-      sync_result_text(sync_get_result(), summary, sizeof(summary));
-      // Full refresh: this screen persists until the next button press, and it
-      // clears the ghosting left by the Menu's and the phases' partials.
-      display_show_message(summary, true);
-      state = IDLE;
-    } else if (((uxBits & MENU_EXIT_BIT) != 0 ||
-                (uxBits & MENU_TIMEOUT_BIT) != 0) &&
-               state == MAIN_MENU) {
-      menu_exit();
-      display_show_idle(true);
-      state = IDLE;
     } else if ((uxBits & MENU_BUTTON_BIT) != 0) {
       if (state == IDLE) {
         state = MAIN_MENU;
