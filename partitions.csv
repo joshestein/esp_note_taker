@@ -1,0 +1,9 @@
+# Custom table: the default single-app layout gives the app 1MB. The board has
+# 8MB of flash, so the app gets 3MB and there is still ~4.7MB spare for a future
+# OTA slot or a data partition.
+
+# nvs is required by Wi-Fi (esp_wifi stores calibration/config there).
+# Name,     Type, SubType, Offset,   Size
+nvs,        data, nvs,     0x9000,   0x6000
+phy_init,   data, phy,     0xf000,   0x1000
+factory,    app,  factory, 0x10000,  0x300000

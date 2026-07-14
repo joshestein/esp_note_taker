@@ -7,3 +7,8 @@ CONFIG_SPIRAM_SPEED_80M=y
 # 8MB flash (N8R8). sdkconfig currently pins 2MB, which triggers the boot-time
 # "Detected size(8192k) larger than binary image header(2048k)" warning.
 CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# The default single-app partition table caps the app at 1MB, which the binary
+# outgrew. partitions.csv gives it 3MB.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
