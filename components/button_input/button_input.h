@@ -10,6 +10,8 @@
 #define CAPTURE_ENDED_BIT (1 << 2) // not set by a button, used by the recording task when it finishes
 #define MENU_EXIT_BIT (1 << 3)     // Menu Button long press ~1s: exit Menu toward Idle
 #define MENU_TIMEOUT_BIT (1 << 4)  // not set by a button, set by the menu's inactivity timer
+#define SYNC_PROGRESS_BIT (1 << 5) // not set by a button, set by the sync task on each phase change
+#define SYNC_ENDED_BIT (1 << 6)    // not set by a button, set by the sync task when it finishes
 
 esp_err_t button_init(EventGroupHandle_t *out_button_group);
 
