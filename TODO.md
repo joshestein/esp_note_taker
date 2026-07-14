@@ -37,7 +37,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [ ] No SD card at record start: refuse to start, Error Indication, stay Idle
 - [ ] Resource auto-stop: stop cleanly on low battery / near-full card (thresholds TBD)
 - [x] Accept sudden-power-loss corruption of the newest file (no periodic header flush -- non-goal, header patched on close only)
-- [ ] Display driver ctor `assert(buffer)` hard-aborts on SPIRAM alloc failure -- violates the best-effort display contract (a dead panel / PSRAM fault must not abort a Capture; see Menu+UI "non-fatal + trailing"). Replace the assert with a graceful null-return so `display_init` fails soft
+- [x] Dropped: making `display_init` fail soft. The display is **fatal**, so the driver ctor's `assert(buffer)` on SPIRAM alloc failure is now consistent, not a violation. A blind device cannot reach the Menu, a Sync, or Idle; limping on just hides that (ADR 0005)
 
 ## Power management
 
@@ -52,11 +52,11 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## Menu + UI
 
-- [x] **Recording Screen** (first e-paper screen; see ADR 0005): `epaper_driver_bsp` lifted from the 1.54 example, LVGL v9 wrapped behind C-API `display_bsp`; hardware-verified. Idle="ready", Recording=circle+"REC", wired best-effort into `main.c`
+- [x] **Recording Screen** (first e-paper screen; see ADR 0005): `epaper_driver_bsp` lifted from the 1.54 example, LVGL v9 wrapped behind C-API `display_bsp`; hardware-verified. Idle="ready", Recording=circle+"REC", wired into `main.c`
   - `display_init()` at boot after sdcard/audio init; paint minimal Idle screen with a **full refresh** (establishes partial base, clears ghosting)
   - `display_show_recording()` = filled circle + "recording"; `display_show_idle()` = minimal placeholder (real Idle screen + battery glyph deferred, TODO 57)
   - Idle<->Recording flips use **partial refresh** (~0.3s, no flash)
-  - Non-fatal + trailing: never `ESP_ERROR_CHECK` display in the record path; start record task first then paint recording, close WAV first then paint idle
+  - **Fatal, but trailing:** `display_init()` is `ESP_ERROR_CHECK`ed like every other init -- the whole UI lives on the panel, so a blind device is a dead device. It stays *ordered* after `start_capture()` (its bring-up is slow, and on a Record-Button wake that time is audio off the front of the memo), so a panel failure does kill an already-running Capture. Accepted. Paints still trail the audio action -- record task starts, then paint recording; WAV closes, then paint idle -- now for latency, not failure isolation
   - No separate Finalizing screen (state is brief; go recording -> idle)
 - [x] `menu` component: owns the card ring, index, wrap, timeout, and the `display_bsp` calls. **Reports intents, performs no side effects** (`MENU_INTENT_NONE|SYNC|SLEEP|EXIT`); `main.c` executes them and stays the only state machine. No dependency on `esp_sleep` / `sdcard_bsp` / the sync task
 - [x] `MENU` state in `main.c`'s `app_state_t`
