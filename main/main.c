@@ -22,7 +22,6 @@ typedef enum {
   MAIN_MENU,
   SYNCING,
   RECORDING,
-  FINALISING,
 } app_state_t;
 
 static volatile bool is_recording = false;
@@ -288,7 +287,7 @@ void app_main(void) {
           break;
         }
       }
-      // FINALISING and SYNCING: press dropped (no sync cancel in v1).
+      // SYNCING: press dropped (no sync cancel in v1).
     } else if ((uxBits & MENU_BUTTON_BIT) != 0) {
       if (state == IDLE) {
         state = MAIN_MENU;
