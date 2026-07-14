@@ -182,9 +182,10 @@ void app_main(void) {
   bool wake_to_record =
       (esp_sleep_get_ext1_wakeup_status() & (1ULL << RECORD_BUTTON)) != 0;
 
-  ESP_ERROR_CHECK(button_init(&button_group));
-  ESP_ERROR_CHECK(menu_init(button_group));
-  ESP_ERROR_CHECK(sync_init(button_group));
+  ESP_ERROR_CHECK(app_events_init()); // before any producer can raise a bit
+  ESP_ERROR_CHECK(button_init());
+  ESP_ERROR_CHECK(menu_init());
+  ESP_ERROR_CHECK(sync_init());
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
   ESP_ERROR_CHECK(audio_bsp_init());
