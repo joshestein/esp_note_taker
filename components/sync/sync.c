@@ -458,8 +458,9 @@ static void download_transcripts(esp_http_client_handle_t client,
   // and the names are note_NNNN.txt: no escapes, no commas, no unicode. So "the
   // strings are what sits between quote pairs" is a complete description of the
   // format, and a JSON parser would be doing nothing a scan cannot.
+  int count = 0;
   char *cursor = (char *)chunk;
-  for (;;) {
+  while (count < MAX_PER_SYNC) {
     char *start = strchr(cursor, '"');
     if (start == NULL) {
       break;
@@ -481,12 +482,17 @@ static void download_transcripts(esp_http_client_handle_t client,
       ESP_LOGW(TAG, "Refusing suspicious transcript name");
       continue;
     }
-    if (have_transcript(name)) {
+    strlcpy(names[count], name, MAX_NAME_LEN);
+    count++;
+  }
+
+  for (int i = 0; i < count; i++) {
+    if (have_transcript(names[i])) {
       continue;
     }
-    if (download_transcript(client, base_url, name)) {
+    if (download_transcript(client, base_url, names[i])) {
       result.downloaded++;
-      ESP_LOGI(TAG, "Downloaded %s", name);
+      ESP_LOGI(TAG, "Downloaded %s", names[i]);
     }
     // A transcript we could not fetch is not counted as a failure: it is not
     // ours yet. It stays on the Companion and we ask again next sync.
