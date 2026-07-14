@@ -4,7 +4,9 @@ Every way a Capture can end -- the wearer pressing Record again, a mid-record co
 
 ## Mechanism
 
-The record button and the end-of-capture signal share **one** FreeRTOS event group (`button_group`), with `CAPTURE_ENDED_BIT` a bit that no button sets -- the record task raises it on exit. `main` blocks in a single `xEventGroupWaitBits` on `RECORD_BUTTON_BIT | POWER_BUTTON_BIT | CAPTURE_ENDED_BIT`.
+The record button and the end-of-capture signal share **one** FreeRTOS event group, with `CAPTURE_ENDED_BIT` a bit that no button sets -- the record task raises it on exit. `main` blocks in a single wait covering the button bits and `CAPTURE_ENDED_BIT`.
+
+> **Amended:** the group started life inside `button_input` as `button_group`. Once the Menu's timer and the sync task also became producers, four of its seven bits were set by something other than a button, and `sync` had to depend on a GPIO driver merely to name an event. The group and the bits now live in the `app_events` component; producers call `app_events_set()`, `main` calls `app_events_wait()`. This ADR's decision -- *one* group, shared by buttons and lifecycle events -- is unchanged; only its address is.
 
 A stop request and the actual stop are decoupled:
 
