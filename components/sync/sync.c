@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static const char *TAG = "sync";
 
@@ -182,12 +183,29 @@ static void set_phase(sync_phase_t phase) {
 
 // --- Upload phase ------------------------------------------------------------
 
-// One sync task, never re-entrant, so these are static rather than malloc'd.
-// The cap is free: sync is a resumable sequence of independent per-file
-// commits, so anything past MAX_PER_SYNC simply goes on the next sync.
+// Owned by the sync task: allocated when it starts, freed when it ends. Held for
+// the seconds a sync runs rather than for the life of the device, which would
+// cost ~6 KB of DRAM permanently for a feature used once in a while. Safe to
+// keep as file statics because the sync task is never re-entrant.
+//
+// The MAX_PER_SYNC cap is free: sync is a resumable sequence of independent
+// per-file commits, so anything past it simply goes on the next sync.
 typedef char capture_name_t[MAX_NAME_LEN];
-static capture_name_t names[MAX_PER_SYNC];
-static uint8_t chunk[UPLOAD_CHUNK_SIZE];
+static capture_name_t *names; // MAX_PER_SYNC entries
+static uint8_t *chunk;        // UPLOAD_CHUNK_SIZE bytes
+
+static bool alloc_buffers(void) {
+  names = malloc(sizeof(capture_name_t) * MAX_PER_SYNC);
+  chunk = malloc(UPLOAD_CHUNK_SIZE);
+  return names != NULL && chunk != NULL;
+}
+
+static void free_buffers(void) {
+  free(names);
+  free(chunk);
+  names = NULL;
+  chunk = NULL;
+}
 
 static int compare_names(const void *a, const void *b) {
   return strcmp((const char *)a, (const char *)b);
@@ -255,7 +273,7 @@ static int post_capture(esp_http_client_handle_t client, const char *base_url,
   int status = -1;
   bool sent_all = true;
   size_t read;
-  while ((read = fread(chunk, 1, sizeof(chunk), file)) > 0) {
+  while ((read = fread(chunk, 1, UPLOAD_CHUNK_SIZE, file)) > 0) {
     if (esp_http_client_write(client, (const char *)chunk, read) != (int)read) {
       ESP_LOGE(TAG, "Write failed for %s", name);
       sent_all = false;
@@ -337,14 +355,11 @@ static void clean_stray_parts(void) {
 }
 
 static bool have_transcript(const char *name) {
-  char path[80];
+  char path[sizeof(TRANSCRIPTS_DIR) + 1 + MAX_NAME_LEN];
   snprintf(path, sizeof(path), "%s/%s", TRANSCRIPTS_DIR, name);
-  FILE *file = fopen(path, "r");
-  if (file == NULL) {
-    return false;
-  }
-  fclose(file);
-  return true;
+  // Existence, not contents: no FILE handle to allocate against the VFS's
+  // 5-file budget, and no open/close of a file we never read.
+  return access(path, F_OK) == 0;
 }
 
 // GET one Transcript, streamed to a .part and renamed only after a clean read to
@@ -371,7 +386,8 @@ static bool download_transcript(esp_http_client_handle_t client,
     return false;
   }
 
-  char part_path[88], final_path[80];
+  char final_path[sizeof(TRANSCRIPTS_DIR) + 1 + MAX_NAME_LEN];
+  char part_path[sizeof(final_path) + sizeof(".part")];
   snprintf(final_path, sizeof(final_path), "%s/%s", TRANSCRIPTS_DIR, name);
   snprintf(part_path, sizeof(part_path), "%s.part", final_path);
 
@@ -384,8 +400,8 @@ static bool download_transcript(esp_http_client_handle_t client,
 
   bool ok = true;
   int read;
-  while ((read = esp_http_client_read(client, (char *)chunk, sizeof(chunk))) >
-         0) {
+  while ((read = esp_http_client_read(client, (char *)chunk,
+                                      UPLOAD_CHUNK_SIZE)) > 0) {
     if (fwrite(chunk, 1, read, file) != (size_t)read) {
       ESP_LOGE(TAG, "Write failed for %s", part_path);
       ok = false;
@@ -422,7 +438,7 @@ static void download_transcripts(esp_http_client_handle_t client,
   const int content_length = esp_http_client_fetch_headers(client);
   const int status = esp_http_client_get_status_code(client);
   if (status != 200 || content_length <= 0 ||
-      content_length >= (int)sizeof(chunk)) {
+      content_length >= UPLOAD_CHUNK_SIZE) {
     ESP_LOGW(TAG, "Transcript list unavailable (status %d, length %d)", status,
              content_length);
     esp_http_client_close(client);
@@ -483,10 +499,16 @@ static void download_transcripts(esp_http_client_handle_t client,
 }
 
 static void sync_task(void *arg) {
-  result = (sync_result_t){.phase = SYNC_PHASE_CONNECTING, .error = SYNC_OK};
+  result = (sync_result_t){};
   char companion_ip[16] = {};
   char base_url[48];
   esp_http_client_handle_t client = NULL;
+
+  if (!alloc_buffers()) {
+    ESP_LOGE(TAG, "Cannot allocate sync buffers");
+    result.error = SYNC_ERR_INTERNAL;
+    goto done;
+  }
 
   set_phase(SYNC_PHASE_CONNECTING);
   if (wifi_connect() != ESP_OK) {
@@ -536,6 +558,7 @@ done:
     esp_http_client_cleanup(client);
   }
   wifi_disconnect();
+  free_buffers();
 
   result.phase = SYNC_PHASE_DONE;
   app_events_set(SYNC_ENDED_BIT);
