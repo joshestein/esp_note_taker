@@ -1,6 +1,7 @@
 #include "sync.h"
 #include "app_events.h"
 #include "config.h"
+#include "esp_check.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
@@ -82,30 +83,20 @@ static esp_err_t netif_init_once(void) {
     ESP_ERROR_CHECK(nvs_flash_erase());
     err = nvs_flash_init();
   }
-  if (err != ESP_OK) {
-    return err;
-  }
+  ESP_RETURN_ON_ERROR(err, TAG, "nvs init");
 
-  err = esp_netif_init();
-  if (err != ESP_OK) {
-    return err;
-  }
-  err = esp_event_loop_create_default();
-  if (err != ESP_OK) {
-    return err;
-  }
+  ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "netif init");
+  ESP_RETURN_ON_ERROR(esp_event_loop_create_default(), TAG, "event loop");
   esp_netif_create_default_wifi_sta();
 
-  err = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
-                                            &wifi_event_handler, NULL, NULL);
-  if (err != ESP_OK) {
-    return err;
-  }
-  err = esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
-                                            &wifi_event_handler, NULL, NULL);
-  if (err != ESP_OK) {
-    return err;
-  }
+  ESP_RETURN_ON_ERROR(
+      esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
+                                          &wifi_event_handler, NULL, NULL),
+      TAG, "wifi handler");
+  ESP_RETURN_ON_ERROR(
+      esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                          &wifi_event_handler, NULL, NULL),
+      TAG, "ip handler");
 
   netif_ready = true;
   return ESP_OK;
@@ -113,21 +104,14 @@ static esp_err_t netif_init_once(void) {
 
 // Joins the network, or gives up. Bounded: never hangs the sync task.
 static esp_err_t wifi_connect(void) {
-  esp_err_t err = netif_init_once();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "netif init failed: %s", esp_err_to_name(err));
-    return err;
-  }
+  ESP_RETURN_ON_ERROR(netif_init_once(), TAG, "netif init");
 
   retries = 0;
   explicit_stop_requested = false;
   xEventGroupClearBits(wifi_events, WIFI_GOT_IP_BIT | WIFI_FAILED_BIT);
 
   wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
-  err = esp_wifi_init(&init_cfg);
-  if (err != ESP_OK) {
-    return err;
-  }
+  ESP_RETURN_ON_ERROR(esp_wifi_init(&init_cfg), TAG, "wifi init");
 
   wifi_config_t wifi_cfg = {};
   strlcpy((char *)wifi_cfg.sta.ssid, WIFI_SSID, sizeof(wifi_cfg.sta.ssid));
