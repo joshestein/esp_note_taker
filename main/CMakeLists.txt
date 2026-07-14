@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "main.c"
-    REQUIRES audio_bsp button_input config display_bsp menu sdcard_bsp sync wav_writer
+    REQUIRES app_events audio_bsp button_input config display_bsp menu sdcard_bsp sync wav_writer
     PRIV_REQUIRES esp_driver_gpio
     INCLUDE_DIRS ".")

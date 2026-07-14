@@ -1,3 +1,4 @@
+#include "app_events.h"
 #include "audio_bsp.h"
 #include "button_input.h"
 #include "config.h"
@@ -27,7 +28,6 @@ typedef enum {
 static volatile bool is_recording = false;
 static volatile bool capture_ok = false;
 static char path[32];
-static EventGroupHandle_t button_group;
 
 static esp_err_t init_led(void) {
   gpio_config_t io_conf = {
@@ -78,7 +78,7 @@ static void record_task(void *arg) {
   // This must be the last thing we do in this task, because the main task is
   // waiting for this bit to be set before it can proceed to finalise the
   // recording.
-  xEventGroupSetBits(button_group, CAPTURE_ENDED_BIT);
+  app_events_set(CAPTURE_ENDED_BIT);
   vTaskDelete(NULL);
 }
 

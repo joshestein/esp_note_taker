@@ -1,6 +1,6 @@
 #include "menu.h"
 
-#include "button_input.h"
+#include "app_events.h"
 #include "display_bsp.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -16,15 +16,15 @@ static const char *const CARD_LABELS[] = {
 };
 #define CARD_COUNT ((int)(sizeof(CARD_LABELS) / sizeof(CARD_LABELS[0])))
 
-static EventGroupHandle_t button_group = NULL;
 static esp_timer_handle_t timeout_timer = NULL;
 static int selection = 0;
 
 // Runs on the esp_timer task, not an ISR.
-// main.c blocks on this group, so the timeout arrives by the same path as a button press.
+// main.c blocks on the app event group, so the timeout arrives by the same path
+// as a button press.
 static void timeout_cb(void *arg) {
   ESP_LOGI(TAG, "Menu timed out");
-  xEventGroupSetBits(button_group, MENU_TIMEOUT_BIT);
+  app_events_set(MENU_TIMEOUT_BIT);
 }
 
 static void restart_timeout(void) {
@@ -32,9 +32,7 @@ static void restart_timeout(void) {
   esp_timer_start_once(timeout_timer, MENU_TIMEOUT_US);
 }
 
-esp_err_t menu_init(EventGroupHandle_t main_button_group) {
-  button_group = main_button_group;
-
+esp_err_t menu_init(void) {
   const esp_timer_create_args_t timer_args = {
       .callback = &timeout_cb,
       .name = "menu_timeout",
@@ -70,5 +68,5 @@ menu_intent_t menu_act(void) {
 
 void menu_exit(void) {
   esp_timer_stop(timeout_timer);
-  xEventGroupClearBits(button_group, MENU_TIMEOUT_BIT);
+  app_events_clear(MENU_TIMEOUT_BIT);
 }

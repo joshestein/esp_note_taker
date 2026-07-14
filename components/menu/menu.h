@@ -2,8 +2,6 @@
 #define MENU_H
 
 #include "esp_err.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 
 typedef enum {
   MENU_INTENT_NONE = 0,
@@ -11,7 +9,7 @@ typedef enum {
   MENU_INTENT_SLEEP,
 } menu_intent_t;
 
-esp_err_t menu_init(EventGroupHandle_t button_group);
+esp_err_t menu_init(void);
 void menu_enter(void);
 menu_intent_t menu_act(void);
 void menu_step(void);

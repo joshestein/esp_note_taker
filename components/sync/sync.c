@@ -1,5 +1,5 @@
 #include "sync.h"
-#include "button_input.h"
+#include "app_events.h"
 #include "config.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
@@ -34,7 +34,6 @@ static const char *TAG = "sync";
 #define WIFI_GOT_IP_BIT (1 << 0)
 #define WIFI_FAILED_BIT (1 << 1)
 
-static EventGroupHandle_t button_group = NULL;
 static EventGroupHandle_t wifi_events = NULL;
 static sync_result_t result;
 
@@ -193,7 +192,7 @@ static esp_err_t resolve_companion(char *out, size_t len) {
 
 static void set_phase(sync_phase_t phase) {
   result.phase = phase;
-  xEventGroupSetBits(button_group, SYNC_PROGRESS_BIT);
+  app_events_set(SYNC_PROGRESS_BIT);
 }
 
 // --- Upload phase ------------------------------------------------------------
@@ -323,7 +322,6 @@ static bool upload_captures(esp_http_client_handle_t client,
                status);
       result.failed++;
     }
-    xEventGroupSetBits(button_group, SYNC_PROGRESS_BIT);
   }
 
   return true;
@@ -496,7 +494,6 @@ static void download_transcripts(esp_http_client_handle_t client,
     }
     // A transcript we could not fetch is not counted as a failure: it is not
     // ours yet. It stays on the Companion and we ask again next sync.
-    xEventGroupSetBits(button_group, SYNC_PROGRESS_BIT);
   }
 }
 
@@ -556,12 +553,11 @@ done:
   wifi_disconnect();
 
   result.phase = SYNC_PHASE_DONE;
-  xEventGroupSetBits(button_group, SYNC_ENDED_BIT);
+  app_events_set(SYNC_ENDED_BIT);
   vTaskDelete(NULL);
 }
 
-esp_err_t sync_init(EventGroupHandle_t group) {
-  button_group = group;
+esp_err_t sync_init(void) {
   wifi_events = xEventGroupCreate();
   return (wifi_events != NULL) ? ESP_OK : ESP_ERR_NO_MEM;
 }

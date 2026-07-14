@@ -2,8 +2,6 @@
 #define SYNC_H
 
 #include "esp_err.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
 
 typedef enum {
   SYNC_PHASE_CONNECTING = 0,
@@ -29,7 +27,7 @@ typedef struct {
   int failed; // per-file failures, skipped and left for the next sync
 } sync_result_t;
 
-esp_err_t sync_init(EventGroupHandle_t button_group);
+esp_err_t sync_init(void);
 
 // Spawns the sync task and returns immediately
 esp_err_t sync_start(void);
