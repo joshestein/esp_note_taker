@@ -302,6 +302,7 @@ void display_show_deep_sleep(void) {
 
 void display_show_recording(void) {
   if (lvgl_lock(-1)) {
+    full_refresh_pending = false;
     lv_screen_load(recording_screen);
     lvgl_unlock();
   }
@@ -331,6 +332,7 @@ void display_show_message(const char *text, bool full_refresh) {
 
 void display_show_menu(const char *const *labels, int count, int selected) {
   if (lvgl_lock(-1)) {
+    full_refresh_pending = false;
     // Load the new screen before freeing the old one -- the old one is still
     // the active screen until lv_screen_load returns.
     lv_obj_t *previous = menu_screen;
