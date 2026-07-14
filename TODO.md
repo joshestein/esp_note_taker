@@ -87,18 +87,23 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 Implements the client side of `docs/sync-protocol.md` (reasoning in ADR 0003 / 0006). The wire behavior *is* the contract; tasks below are device plumbing, not a restatement of it.
 
-- [ ] `wifi_secrets.h` (**gitignored**, never commit): Wi-Fi creds + per-owner Companion mDNS hostname (e.g. `josh-memo.local`) + shared bearer token
-- [ ] Companion discovery: resolve the mDNS hostname at sync start (ESP-IDF `mdns`), bounded timeout
-- [ ] Sync auth: send `Authorization: Bearer <token>` on every request
-- [ ] Sync card trigger: Record btn -> connect Wi-Fi, sync, disconnect. Radio off otherwise
-- [ ] Dedicated **sync task** (mirror `record_task`): owns connect->transfer->disconnect off the button/LVGL task, signals done via an event-group bit
-- [ ] Session envelope: `wifi connect -> mDNS resolve -> uploads (oldest-first) -> downloads -> wifi stop`. Bounded timeouts (connect ~10s, mDNS ~3s); any failure -> radio off, Error Indication, back to Menu (no hang)
+- [x] `wifi_secrets.h` (**gitignored**, never commit): Wi-Fi creds + per-owner Companion mDNS hostname (e.g. `josh-memo.local`) + port + shared bearer token. Ship a committed `wifi_secrets.example.h` so a missing file fails loudly at compile time
+- [x] Path constants into `config.h` (`SD_MOUNT_POINT`, `SYNCED_DIR`, `TRANSCRIPTS_DIR`, `NOTE_FILENAME_FMT`) -- `main.c` and `sync` must not each hardcode `/sdcard/...`; a disagreement means uploads that never advance
+- [x] `mkdir()` `/sdcard/synced/` and `/sdcard/transcripts/` (ignore `EEXIST`). **On a fresh card they don't exist**, so every `rename()` fails, every Capture stays unsynced, and the device re-uploads everything on every sync while reporting success
+- [ ] `sync` component: does its **own POSIX I/O** on the mounted VFS (`opendir`/`fopen`/`rename`) -- `/sdcard` is a filesystem once mounted, so no `REQUIRES sdcard_bsp`. And no `REQUIRES display_bsp`: it reports, `main.c` paints (mirrors `menu` and `record_task`)
+- [ ] Dedicated **sync task** (mirror `record_task`): owns connect->transfer->disconnect. Writes phase + counts into a shared struct and signals `SYNC_PROGRESS_BIT` / `SYNC_ENDED_BIT` in the existing `button_group`; `main.c` wakes, reads, paints
+- [x] **Wi-Fi init is lazy** -- `nvs_flash_init` / `esp_netif` / event loop / `esp_wifi_init` all inside the sync task, torn down at the end. **Not at boot:** `main.c` starts a Capture *before* `display_init()` on a Record-Button wake from Deep Sleep, so anything added to boot is audio lost off the front of every memo, to save a second on a rare manual sync
+- [ ] Session envelope: `wifi connect -> mDNS resolve -> uploads (oldest-first) -> downloads -> wifi stop`. Bounded timeouts (connect ~10s, mDNS ~3s); no hang
+- [ ] **Per-file failure = skip, not abort.** A timeout/500/dropped connection on one file leaves it unsynced (retried next sync) and the session continues. Aborting would make one unsendable Capture a **poison pill**: enumerated oldest-first, it would abort every future sync and silently block everything behind it
+- [ ] **Session-level failure = abort** (Wi-Fi won't connect, mDNS won't resolve, 401). Radio off, Error Indication, Sync result. 401 gets its own message ("unauthorized") -- it is permanent until reflash, not transient, and a generic "failed" sends you rebooting the router
 - [ ] Single keep-alive `esp_http_client` reused across all requests (no per-file reconnect)
-- [ ] Upload: enumerate unsynced Captures (skip `/sdcard/synced/`), stream each from SD per the contract; on 200 `rename()` into `/sdcard/synced/`; leave unsynced on any failure (retry next sync)
+- [ ] Upload: enumerate unsynced Captures (top-level `*.wav`, skip `/synced/`), stream each from SD per the contract; on 200 `rename()` into `/sdcard/synced/`
 - [ ] Download: `GET /transcripts`, diff against local `/sdcard/transcripts/`, fetch each missing stem per the contract (atomic `.part` -> `.txt`); clean up stray `.part` at sync start
 - [ ] Recordings card: show one-line transcript preview if present (hold only, no reader)
-- [ ] Sync progress on e-paper: **phase-level only** ("Connecting"/"Uploading"/"Downloading"/"Synced N up, M down"), ~4 partial refreshes total
-- [ ] Non-goal (v1): no sync cancel (sync is seconds; let it finish)
+- [ ] Sync progress on e-paper: **phase-level only** -- "Connecting"/"Uploading"/"Downloading" as partial refreshes, then the **Sync result** as a full refresh (the screen that persists is the one that should be clean, and it's where the Menu's accumulated ghosting gets cleared)
+- [ ] Sync **leaves the Menu on the way in** and lands in **Idle** on the way out, showing the Sync result. The result does not expire -- the next button press repaints. `menu_exit()` no longer paints Idle itself; `main.c` paints whatever comes next
+- [ ] Result must show **failures, not just successes** ("3 up, 1 down, 2 failed"). A partial sync that reads like a complete one is the failure the screen exists to prevent
+- [ ] Non-goal (v1): no sync cancel (sync is seconds; let it finish). Button presses dropped for its duration
 - [ ] Deferred: time-set from Companion `Date` header -> RTC (PCF85063), with the rest of timestamp naming; TZ offset likely in `wifi_secrets.h`
 - [ ] Deferred (Tier 2): TLS -- encrypt body + pinned-cert Companion verify. Additive over the token
 - [ ] Deferred: throttled live counter (`7/20`) instead of phase-level
