@@ -29,11 +29,18 @@ static sync_result_t result;
 static bool netif_ready = false;
 static int retries = 0;
 
+// Set before tearing the radio down. Without this the handler
+// reconnects into the stop we are in the middle of performing.
+static volatile bool explicit_stop_requested = false;
+
 static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id,
                                void *data) {
   if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
     esp_wifi_connect();
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (explicit_stop_requested) {
+      return; // we asked for this one
+    }
     if (retries < WIFI_MAX_RETRIES) {
       retries++;
       ESP_LOGW(TAG, "Disconnected, retry %d/%d", retries, WIFI_MAX_RETRIES);
@@ -99,6 +106,7 @@ static esp_err_t wifi_connect(void) {
   }
 
   retries = 0;
+  explicit_stop_requested = false;
   xEventGroupClearBits(wifi_events, WIFI_GOT_IP_BIT | WIFI_FAILED_BIT);
 
   wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -135,8 +143,9 @@ static esp_err_t wifi_connect(void) {
 }
 
 // Radio off. Leaves the netif and event loop standing (see netif_init_once).
+// esp_wifi_stop() disconnects on its own, so no explicit disconnect first.
 static void wifi_disconnect(void) {
-  esp_wifi_disconnect();
+  explicit_stop_requested = true;
   esp_wifi_stop();
   esp_wifi_deinit();
   ESP_LOGI(TAG, "Radio off");
