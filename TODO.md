@@ -103,6 +103,7 @@ Implements the client side of `docs/sync-protocol.md` (reasoning in ADR 0003 / 0
 - [ ] Sync progress on e-paper: **phase-level only** -- "Connecting"/"Uploading"/"Downloading" as partial refreshes, then the **Sync result** as a full refresh (the screen that persists is the one that should be clean, and it's where the Menu's accumulated ghosting gets cleared)
 - [ ] Sync **leaves the Menu on the way in** and lands in **Idle** on the way out, showing the Sync result. The result does not expire -- the next button press repaints. `menu_exit()` no longer paints Idle itself; `main.c` paints whatever comes next
 - [ ] Result must show **failures, not just successes** ("3 up, 1 down, 2 failed"). A partial sync that reads like a complete one is the failure the screen exists to prevent
+- [ ] Allow companion to take ?since=note_0042 as param, device can supply cursor
 - [ ] Non-goal (v1): no sync cancel (sync is seconds; let it finish). Button presses dropped for its duration
 - [ ] Deferred: time-set from Companion `Date` header -> RTC (PCF85063), with the rest of timestamp naming; TZ offset likely in `wifi_secrets.h`
 - [ ] Deferred (Tier 2): TLS -- encrypt body + pinned-cert Companion verify. Additive over the token
