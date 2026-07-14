@@ -197,12 +197,7 @@ void app_main(void) {
     state = RECORDING;
   }
 
-  // Best-effort: a dead panel must not abort captures. The LED is the primary
-  // recording tell (ADR 0005), so log and carry on if the display fails.
-  esp_err_t display_err = display_init();
-  if (display_err != ESP_OK) {
-    ESP_LOGW(TAG, "Display init failed: %s", esp_err_to_name(display_err));
-  }
+  ESP_ERROR_CHECK(display_init());
   if (state == RECORDING) {
     display_show_recording();
   }
