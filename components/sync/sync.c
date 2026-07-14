@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "mdns.h"
 #include "nvs_flash.h"
 #include "wifi_secrets.h"
 #include <string.h>
@@ -152,6 +153,31 @@ static void wifi_disconnect(void) {
   ESP_LOGI(TAG, "Radio off");
 }
 
+// Resolve the Companion's per-owner mDNS hostname to an address, bounded. The
+// hostname is hardcoded (wifi_secrets.h).
+// Writes the dotted-quad into `out` for the HTTP client to use as the host.
+static esp_err_t resolve_companion(char *out, size_t len) {
+  esp_err_t err = mdns_init();
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "mdns_init failed: %s", esp_err_to_name(err));
+    return err;
+  }
+
+  esp_ip4_addr_t addr = {};
+  err = mdns_query_a(COMPANION_HOSTNAME, MDNS_RESOLVE_TIMEOUT_MS, &addr);
+  mdns_free();
+
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Could not resolve %s.local: %s", COMPANION_HOSTNAME,
+             esp_err_to_name(err));
+    return err;
+  }
+
+  snprintf(out, len, IPSTR, IP2STR(&addr));
+  ESP_LOGI(TAG, "Companion %s.local is at %s", COMPANION_HOSTNAME, out);
+  return ESP_OK;
+}
+
 static void set_phase(sync_phase_t phase) {
   result.phase = phase;
   xEventGroupSetBits(button_group, SYNC_PROGRESS_BIT);
@@ -159,14 +185,23 @@ static void set_phase(sync_phase_t phase) {
 
 static void sync_task(void *arg) {
   result = (sync_result_t){.phase = SYNC_PHASE_CONNECTING, .error = SYNC_OK};
+  char companion_ip[16] = {};
 
   set_phase(SYNC_PHASE_CONNECTING);
   if (wifi_connect() != ESP_OK) {
     result.error = SYNC_ERR_WIFI;
+    goto done; // session-level: nothing to talk to
   }
 
-  // TODO: mDNS resolve, upload phase, download phase.
+  set_phase(SYNC_PHASE_RESOLVING);
+  if (resolve_companion(companion_ip, sizeof(companion_ip)) != ESP_OK) {
+    result.error = SYNC_ERR_NO_COMPANION;
+    goto done; // session-level: no point retrying files
+  }
 
+  // TODO: upload phase, download phase.
+
+done:
   wifi_disconnect();
 
   result.phase = SYNC_PHASE_DONE;
