@@ -1,5 +1,6 @@
 #include "sync.h"
 #include "button_input.h"
+#include "cJSON.h"
 #include "config.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
@@ -329,6 +330,158 @@ static bool upload_captures(esp_http_client_handle_t client,
   return true;
 }
 
+// --- Download phase ----------------------------------------------------------
+
+// A .part is the wreckage of a download interrupted by a dead battery. Cleared
+// at sync start so it can never be mistaken for a real Transcript.
+static void clean_stray_parts(void) {
+  DIR *dir = opendir(TRANSCRIPTS_DIR);
+  if (dir == NULL) {
+    return;
+  }
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL) {
+    const char *dot = strrchr(entry->d_name, '.');
+    if (dot != NULL && strcmp(dot, ".part") == 0) {
+      char path[80];
+      snprintf(path, sizeof(path), "%s/%s", TRANSCRIPTS_DIR, entry->d_name);
+      ESP_LOGW(TAG, "Removing stray %s", path);
+      remove(path);
+    }
+  }
+  closedir(dir);
+}
+
+static bool have_transcript(const char *name) {
+  char path[80];
+  snprintf(path, sizeof(path), "%s/%s", TRANSCRIPTS_DIR, name);
+  FILE *file = fopen(path, "r");
+  if (file == NULL) {
+    return false;
+  }
+  fclose(file);
+  return true;
+}
+
+// GET one Transcript, streamed to a .part and renamed only after a clean read to
+// EOF. That atomicity is what makes the presence-diff safe: a truncated .txt
+// would otherwise look like "already have it" forever (ADR 0006).
+static bool download_transcript(esp_http_client_handle_t client,
+                                const char *base_url, const char *name) {
+  char url[128];
+  snprintf(url, sizeof(url), "%s/transcripts/%s", base_url, name);
+  esp_http_client_set_url(client, url);
+  esp_http_client_set_method(client, HTTP_METHOD_GET);
+
+  if (esp_http_client_open(client, 0) != ESP_OK) {
+    ESP_LOGE(TAG, "Connect failed for %s", name);
+    return false;
+  }
+
+  esp_http_client_fetch_headers(client);
+  const int status = esp_http_client_get_status_code(client);
+  if (status != 200) {
+    // 404 just means not transcribed yet: skip, try again next sync.
+    ESP_LOGW(TAG, "Transcript %s not ready (status %d)", name, status);
+    esp_http_client_close(client);
+    return false;
+  }
+
+  char part_path[88], final_path[80];
+  snprintf(final_path, sizeof(final_path), "%s/%s", TRANSCRIPTS_DIR, name);
+  snprintf(part_path, sizeof(part_path), "%s.part", final_path);
+
+  FILE *file = fopen(part_path, "wb");
+  if (file == NULL) {
+    ESP_LOGE(TAG, "Cannot open %s", part_path);
+    esp_http_client_close(client);
+    return false;
+  }
+
+  bool ok = true;
+  int read;
+  while ((read = esp_http_client_read(client, (char *)chunk, sizeof(chunk))) >
+         0) {
+    if (fwrite(chunk, 1, read, file) != (size_t)read) {
+      ESP_LOGE(TAG, "Write failed for %s", part_path);
+      ok = false;
+      break;
+    }
+  }
+  if (read < 0) {
+    ok = false; // connection died mid-body
+  }
+
+  fclose(file);
+  esp_http_client_close(client);
+
+  if (!ok || rename(part_path, final_path) != 0) {
+    remove(part_path); // never leave a truncated .txt behind
+    return false;
+  }
+  return true;
+}
+
+// Fetch the Companion's list of ready Transcripts and pull the ones we lack.
+static void download_transcripts(esp_http_client_handle_t client,
+                                 const char *base_url) {
+  char url[128];
+  snprintf(url, sizeof(url), "%s/transcripts", base_url);
+  esp_http_client_set_url(client, url);
+  esp_http_client_set_method(client, HTTP_METHOD_GET);
+
+  if (esp_http_client_open(client, 0) != ESP_OK) {
+    ESP_LOGE(TAG, "Cannot fetch transcript list");
+    return;
+  }
+
+  const int content_length = esp_http_client_fetch_headers(client);
+  const int status = esp_http_client_get_status_code(client);
+  if (status != 200 || content_length <= 0 ||
+      content_length >= (int)sizeof(chunk)) {
+    ESP_LOGW(TAG, "Transcript list unavailable (status %d, length %d)", status,
+             content_length);
+    esp_http_client_close(client);
+    return;
+  }
+
+  const int read = esp_http_client_read(client, (char *)chunk, content_length);
+  esp_http_client_close(client);
+  if (read != content_length) {
+    ESP_LOGE(TAG, "Short read on transcript list");
+    return;
+  }
+  chunk[read] = '\0';
+
+  cJSON *list = cJSON_Parse((const char *)chunk);
+  if (list == NULL || !cJSON_IsArray(list)) {
+    ESP_LOGE(TAG, "Transcript list is not a JSON array");
+    cJSON_Delete(list);
+    return;
+  }
+
+  cJSON *item;
+  cJSON_ArrayForEach(item, list) {
+    if (!cJSON_IsString(item) || item->valuestring == NULL) {
+      continue;
+    }
+    const char *name = item->valuestring;
+    if (have_transcript(name)) {
+      continue;
+    }
+    if (download_transcript(client, base_url, name)) {
+      result.downloaded++;
+      ESP_LOGI(TAG, "Downloaded %s", name);
+    }
+    // A transcript we could not fetch is not counted as a failure: it is not
+    // ours yet. It stays on the Companion and we ask again next sync.
+    xEventGroupSetBits(button_group, SYNC_PROGRESS_BIT);
+  }
+
+  cJSON_Delete(list);
+}
+
 static void sync_task(void *arg) {
   result = (sync_result_t){.phase = SYNC_PHASE_CONNECTING, .error = SYNC_OK};
   char companion_ip[16] = {};
@@ -368,12 +521,15 @@ static void sync_task(void *arg) {
   snprintf(auth, sizeof(auth), "Bearer %s", COMPANION_TOKEN);
   esp_http_client_set_header(client, "Authorization", auth);
 
+  clean_stray_parts();
+
   set_phase(SYNC_PHASE_UPLOADING);
   if (!upload_captures(client, base_url)) {
     goto done; // upload_captures set the session-level error
   }
 
-  // TODO: download phase.
+  set_phase(SYNC_PHASE_DOWNLOADING);
+  download_transcripts(client, base_url);
 
 done:
   if (client != NULL) {
