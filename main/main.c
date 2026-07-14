@@ -14,6 +14,7 @@
 #include "wav_writer.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 static const char *TAG = "main";
 
@@ -129,25 +130,28 @@ static const char *sync_phase_text(sync_phase_t phase) {
   return "";
 }
 
-static void sync_result_text(sync_result_t result, char *out, size_t len) {
-  switch (result.error) {
+// NULL for SYNC_OK: a successful sync has counts to format, not a fixed string.
+static const char *sync_error_text(sync_error_t error) {
+  switch (error) {
   case SYNC_ERR_WIFI:
-    snprintf(out, len, "Sync failed:\nno Wi-Fi");
-    return;
+    return "Sync failed:\nno Wi-Fi";
   case SYNC_ERR_NO_COMPANION:
-    snprintf(out, len, "Sync failed:\nno companion");
-    return;
+    return "Sync failed:\nno companion";
   case SYNC_ERR_UNAUTHORIZED:
-    snprintf(out, len, "Sync failed:\nunauthorized");
-    return;
+    return "Sync failed:\nunauthorized";
   case SYNC_ERR_INTERNAL:
-    snprintf(out, len, "Sync failed");
-    return;
+    return "Sync failed";
   case SYNC_OK:
-    break;
+    return NULL;
   }
+  return NULL;
+}
 
-  if (result.failed > 0) {
+static void sync_result_text(sync_result_t result, char *out, size_t len) {
+  const char *error = sync_error_text(result.error);
+  if (error != NULL) {
+    strlcpy(out, error, len);
+  } else if (result.failed > 0) {
     snprintf(out, len, "%d up, %d down,\n%d failed", result.uploaded,
              result.downloaded, result.failed);
   } else {
@@ -251,8 +255,9 @@ void app_main(void) {
       state = IDLE;
     }
 
-    // A press that arrived in the same tick as one of the transitions was made
-    // while the old state still held 
+    // A press that arrived in the same tick as one of the transitions above was
+    // made while the old state still held, so it is not an instruction about the
+    // state we just moved into. Drop it.
     if (state != arrived_in) {
       continue;
     }
