@@ -31,8 +31,8 @@ static const char *TAG = "sync";
 // free, because the protocol is a resumable sequence of per-file commits.
 #define MAX_PER_SYNC 64
 
-// Local to the Wi-Fi bring-up. Distinct from the app's button_group: these bits
-// are an implementation detail of connecting, not something main.c reacts to.
+// Local to the Wi-Fi bring-up. Distinct from the app event group: these bits are
+// an implementation detail of connecting, not something main.c reacts to.
 #define WIFI_GOT_IP_BIT (1 << 0)
 #define WIFI_FAILED_BIT (1 << 1)
 
