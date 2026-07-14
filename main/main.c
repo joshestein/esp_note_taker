@@ -9,6 +9,7 @@
 #include "freertos/idf_additions.h"
 #include "menu.h"
 #include "sdcard_bsp.h"
+#include "sync.h"
 #include "wav_writer.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -111,6 +112,51 @@ static bool start_capture(int *note_counter) {
   return true;
 }
 
+// The sync task reports phases and counts; turn them into words. Keeps the
+// sync component free of any notion that there is a screen.
+static const char *sync_phase_text(sync_phase_t phase) {
+  switch (phase) {
+  case SYNC_PHASE_CONNECTING:
+    return "Connecting...";
+  case SYNC_PHASE_RESOLVING:
+    return "Finding companion...";
+  case SYNC_PHASE_UPLOADING:
+    return "Uploading...";
+  case SYNC_PHASE_DOWNLOADING:
+    return "Downloading...";
+  case SYNC_PHASE_DONE:
+    return "Done";
+  }
+  return "";
+}
+
+static void sync_result_text(sync_result_t result, char *out, size_t len) {
+  switch (result.error) {
+  case SYNC_ERR_WIFI:
+    snprintf(out, len, "Sync failed:\nno Wi-Fi");
+    return;
+  case SYNC_ERR_NO_COMPANION:
+    snprintf(out, len, "Sync failed:\nno companion");
+    return;
+  case SYNC_ERR_UNAUTHORIZED:
+    snprintf(out, len, "Sync failed:\nunauthorized");
+    return;
+  case SYNC_ERR_INTERNAL:
+    snprintf(out, len, "Sync failed");
+    return;
+  case SYNC_OK:
+    break;
+  }
+
+  if (result.failed > 0) {
+    snprintf(out, len, "%d up, %d down,\n%d failed", result.uploaded,
+             result.downloaded, result.failed);
+  } else {
+    snprintf(out, len, "Synced\n%d up, %d down", result.uploaded,
+             result.downloaded);
+  }
+}
+
 // Park the device in Deep Sleep. Wakes on either button, active low; the wake
 // cause is read back on the next boot to decide Idle vs Capture. Does not
 // return.
@@ -138,6 +184,7 @@ void app_main(void) {
 
   ESP_ERROR_CHECK(button_init(&button_group));
   ESP_ERROR_CHECK(menu_init(button_group));
+  ESP_ERROR_CHECK(sync_init(button_group));
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
   ESP_ERROR_CHECK(audio_bsp_init());
@@ -163,7 +210,8 @@ void app_main(void) {
   for (;;) {
     EventBits_t uxBits = xEventGroupWaitBits(
         button_group,
-        RECORD_BUTTON_BIT | MENU_BUTTON_BIT | MENU_EXIT_BIT | CAPTURE_ENDED_BIT | MENU_TIMEOUT_BIT,
+        RECORD_BUTTON_BIT | MENU_BUTTON_BIT | MENU_EXIT_BIT | CAPTURE_ENDED_BIT |
+            MENU_TIMEOUT_BIT | SYNC_PROGRESS_BIT | SYNC_ENDED_BIT,
         pdTRUE,  /* Clear before returning. */
         pdFALSE, /* Don't wait for both bits, either bit will do. */
         portMAX_DELAY);
@@ -201,9 +249,14 @@ void app_main(void) {
       } else if (state == MAIN_MENU) {
         switch (menu_act()) {
         case MENU_INTENT_SYNC:
-          ESP_LOGI(TAG, "Syncing...");
-          state = IDLE; // TODO: add a SYNC state to show a "Syncing..." screen while the sync is in progress
           menu_exit();
+          if (sync_start() == ESP_OK) {
+            state = SYNCING;
+          } else {
+            ESP_LOGE(TAG, "Failed to start sync task");
+            display_show_idle(true);
+            state = IDLE;
+          }
           break;
         case MENU_INTENT_SLEEP:
           ESP_LOGI(TAG, "Entering deep sleep");
@@ -214,7 +267,16 @@ void app_main(void) {
           break;
         }
       }
-      // FINALISING: press dropped, no queued restart (see CONTEXT.md).
+      // FINALISING and SYNCING: press dropped (no sync cancel in v1).
+    } else if ((uxBits & SYNC_PROGRESS_BIT) && (state == SYNCING)) {
+      display_show_message(sync_phase_text(sync_get_result().phase), false);
+    } else if ((uxBits & SYNC_ENDED_BIT) && (state == SYNCING)) {
+      char summary[48];
+      sync_result_text(sync_get_result(), summary, sizeof(summary));
+      // Full refresh: this screen persists until the next button press, and it
+      // clears the ghosting left by the Menu's and the phases' partials.
+      display_show_message(summary, true);
+      state = IDLE;
     } else if (((uxBits & MENU_EXIT_BIT) != 0 ||
                 (uxBits & MENU_TIMEOUT_BIT) != 0) &&
                state == MAIN_MENU) {
