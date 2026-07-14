@@ -13,6 +13,7 @@ static const char *TAG = "sync";
 
 #define WIFI_CONNECT_TIMEOUT_MS 10000
 #define WIFI_MAX_RETRIES 3
+#define MDNS_RESOLVE_TIMEOUT_MS 3000
 
 // Local to the Wi-Fi bring-up. Distinct from the app's button_group: these bits
 // are an implementation detail of connecting, not something main.c reacts to.
