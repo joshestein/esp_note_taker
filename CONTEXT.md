@@ -101,7 +101,7 @@ A distinct LED pattern (e.g. blinking, unlike the steady Recording Indicator) si
 The storage medium for WAV files. Required for device operation.
 
 ## RTC
-The PCF85063 real-time clock (I2C 0x51). Intended timestamp source for WAV naming, unused in v1 (Captures use a sequence number). Time-setting is deferred to Sync (from the Companion's `Date` header); until then the clock is untrusted.
+The PCF85063 real-time clock (I2C 0x51), battery-backed so it keeps time across deep sleep, power loss, and an SD wipe. Two roles: the timestamp source for WAV naming, and the **trust signal** that selects the naming regime -- its oscillator-stop bit reports whether time is valid, so the "have we ever set the clock?" answer lives in the battery-backed chip rather than on the SD card (see WAV File). Time is set at Sync from the Companion's `Date` header; until first set the clock reads untrusted and naming falls back to the sequence counter.
 
 ---
 
