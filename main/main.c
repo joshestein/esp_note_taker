@@ -193,19 +193,22 @@ void app_main(void) {
   ESP_ERROR_CHECK(sync_init());
   ESP_ERROR_CHECK(sdcard_init());
   int note_counter = sdcard_scan_max();
+  const bool capture_ready = note_counter >= 0;
   ESP_ERROR_CHECK(audio_bsp_init());
   ESP_ERROR_CHECK(init_led());
   gpio_set_level(LED_PIN, 1); // LED starts off
 
   // On a Record-Button wake, start the Capture immediately without waiting for
   // display initialisation
-  if (wake_to_record && start_capture(&note_counter)) {
+  if (wake_to_record && capture_ready && start_capture(&note_counter)) {
     state = RECORDING;
   }
 
   ESP_ERROR_CHECK(display_init());
   if (state == RECORDING) {
     display_show_recording();
+  } else if (wake_to_record && !capture_ready) {
+    display_show_message("SD scan failed", true);
   }
 
   for (;;) {
@@ -267,7 +270,9 @@ void app_main(void) {
     if ((uxBits & RECORD_BUTTON_BIT) != 0) {
       ESP_LOGI(TAG, "Record button pressed");
       if (state == IDLE) {
-        if (start_capture(&note_counter)) {
+        if (!capture_ready) {
+          display_show_message("SD scan failed", true);
+        } else if (start_capture(&note_counter)) {
           state = RECORDING;
           display_show_recording();
         }
