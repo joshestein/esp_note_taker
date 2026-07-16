@@ -13,8 +13,9 @@ typedef enum {
 
 typedef enum {
   SYNC_OK = 0,
-  SYNC_ERR_WIFI,         // could not join the network
-  SYNC_ERR_NO_COMPANION, // mDNS did not resolve
+  SYNC_ERR_WIFI,          // saved network was in range but would not join
+  SYNC_ERR_NO_KNOWN_WIFI, // scanned: no saved network in range
+  SYNC_ERR_NO_COMPANION,  // mDNS did not resolve
   SYNC_ERR_UNAUTHORIZED, // 401: wrong token, permanent until reflash
   SYNC_ERR_INTERNAL,
 } sync_error_t;
