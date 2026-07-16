@@ -11,6 +11,7 @@
 #include "nvs_flash.h"
 #include "wifi_secrets.h"
 #include <dirent.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -19,6 +20,8 @@ static const char *TAG = "sync";
 
 #define WIFI_CONNECT_TIMEOUT_MS 10000
 #define WIFI_MAX_RETRIES 3
+// Cap on scan records pulled when picking a network.
+#define WIFI_SCAN_MAX_AP 10
 #define MDNS_RESOLVE_TIMEOUT_MS 3000
 #define HTTP_TIMEOUT_MS 10000
 
@@ -39,6 +42,15 @@ static const char *TAG = "sync";
 static EventGroupHandle_t wifi_events = NULL;
 static sync_result_t result;
 
+// Saved networks (wifi_secrets.h). At sync start we scan and join the
+// strongest of these actually in range.
+typedef struct {
+  const char *ssid;
+  const char *password;
+} wifi_network_t;
+static const wifi_network_t wifi_networks[] = WIFI_NETWORKS;
+#define WIFI_NETWORK_COUNT (sizeof(wifi_networks) / sizeof(wifi_networks[0]))
+
 // esp_netif_init() and the default event loop cannot be reliably torn down, so
 // the one-time scaffolding is done once and kept. esp_wifi_init/deinit cycles
 // per sync.
@@ -51,9 +63,7 @@ static volatile bool explicit_stop_requested = false;
 
 static void wifi_event_handler(void *arg, esp_event_base_t base, int32_t id,
                                void *data) {
-  if (base == WIFI_EVENT && id == WIFI_EVENT_STA_START) {
-    esp_wifi_connect();
-  } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+  if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
     if (explicit_stop_requested) {
       return; // we asked for this one
     }
@@ -103,7 +113,56 @@ static esp_err_t netif_init_once(void) {
   return ESP_OK;
 }
 
-// Joins the network, or gives up. Bounded: never hangs the sync task.
+// Scans nearby APs and returns the index into wifi_networks of the strongest
+// saved network that is actually in range. Returns -1 if none of ours are
+// present (a distinct, non-transient failure: wrong place, or add this network),
+// and -2 on a scan/radio error. Requires the radio already started.
+static int pick_known_network(void) {
+  wifi_scan_config_t scan_cfg = {}; // active scan, all channels, hidden skipped
+  if (esp_wifi_scan_start(&scan_cfg, true) != ESP_OK) {
+    ESP_LOGE(TAG, "Wi-Fi scan failed");
+    return -2;
+  }
+
+  uint16_t found = 0;
+  esp_wifi_scan_get_ap_num(&found);
+  if (found == 0) {
+    return -1;
+  }
+  if (found > WIFI_SCAN_MAX_AP) {
+    found = WIFI_SCAN_MAX_AP;
+  }
+
+  wifi_ap_record_t *records = malloc(found * sizeof(wifi_ap_record_t));
+  if (records == NULL) {
+    esp_wifi_clear_ap_list();
+    return -2;
+  }
+  uint16_t n = found;
+  // Frees the driver's internal AP list even when we ask for fewer than found.
+  if (esp_wifi_scan_get_ap_records(&n, records) != ESP_OK) {
+    free(records);
+    return -2;
+  }
+
+  int best = -1;
+  int8_t best_rssi = INT8_MIN;
+  for (uint16_t i = 0; i < n; i++) {
+    for (size_t k = 0; k < WIFI_NETWORK_COUNT; k++) {
+      if (strcmp((const char *)records[i].ssid, wifi_networks[k].ssid) == 0 &&
+          records[i].rssi > best_rssi) {
+        best_rssi = records[i].rssi;
+        best = (int)k;
+      }
+    }
+  }
+  free(records);
+  return best;
+}
+
+// Scans, joins the strongest saved network in range, or gives up. Sets
+// result.error on every failure path. Bounded: never hangs the sync task.
+// Teardown of the radio on failure is left to wifi_disconnect() at sync end.
 static esp_err_t wifi_connect(void) {
   ESP_RETURN_ON_ERROR(netif_init_once(), TAG, "netif init");
 
@@ -114,21 +173,35 @@ static esp_err_t wifi_connect(void) {
   wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_RETURN_ON_ERROR(esp_wifi_init(&init_cfg), TAG, "wifi init");
 
-  wifi_config_t wifi_cfg = {};
-  strlcpy((char *)wifi_cfg.sta.ssid, WIFI_SSID, sizeof(wifi_cfg.sta.ssid));
-  strlcpy((char *)wifi_cfg.sta.password, WIFI_PASSWORD,
-          sizeof(wifi_cfg.sta.password));
-
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
 
-  // Powers the radio.
+  // Powers the radio. Started before any network is configured so we can scan
+  // first and pick the strongest saved network that is actually in range.
   esp_err_t err = esp_wifi_start();
   if (err != ESP_OK) {
     esp_wifi_deinit();
     ESP_LOGE(TAG, "wifi start failed: %s", esp_err_to_name(err));
+    result.error = SYNC_ERR_WIFI;
     return err;
   }
+
+  int net = pick_known_network();
+  if (net < 0) {
+    result.error = (net == -1) ? SYNC_ERR_NO_KNOWN_WIFI : SYNC_ERR_WIFI;
+    ESP_LOGE(TAG, "%s",
+             net == -1 ? "No saved network in range" : "Wi-Fi scan error");
+    return ESP_FAIL;
+  }
+
+  wifi_config_t wifi_cfg = {};
+  strlcpy((char *)wifi_cfg.sta.ssid, wifi_networks[net].ssid,
+          sizeof(wifi_cfg.sta.ssid));
+  strlcpy((char *)wifi_cfg.sta.password, wifi_networks[net].password,
+          sizeof(wifi_cfg.sta.password));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
+  ESP_LOGI(TAG, "Joining %s", wifi_networks[net].ssid);
+
+  esp_wifi_connect();
 
   EventBits_t bits = xEventGroupWaitBits(
       wifi_events, WIFI_GOT_IP_BIT | WIFI_FAILED_BIT, pdTRUE, pdFALSE,
@@ -137,6 +210,7 @@ static esp_err_t wifi_connect(void) {
   if ((bits & WIFI_GOT_IP_BIT) == 0) {
     ESP_LOGE(TAG, "Wi-Fi connect failed (%s)",
              (bits & WIFI_FAILED_BIT) ? "gave up" : "timed out");
+    result.error = SYNC_ERR_WIFI;
     return ESP_FAIL;
   }
   return ESP_OK;
@@ -512,8 +586,7 @@ static void sync_task(void *arg) {
 
   set_phase(SYNC_PHASE_CONNECTING);
   if (wifi_connect() != ESP_OK) {
-    result.error = SYNC_ERR_WIFI;
-    goto done; // session-level: nothing to talk to
+    goto done; // session-level: wifi_connect set the error
   }
 
   set_phase(SYNC_PHASE_RESOLVING);
