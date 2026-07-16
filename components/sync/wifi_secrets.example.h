@@ -5,8 +5,12 @@
 #ifndef WIFI_SECRETS_H
 #define WIFI_SECRETS_H
 
-#define WIFI_SSID "your-network"
-#define WIFI_PASSWORD "your-password"
+// Saved networks, tried by scanning at sync start and joining the strongest one
+// actually in range.
+#define WIFI_NETWORKS                                                          \
+  {                                                                            \
+    {"home-ssid", "home-password"}, { "office-ssid", "office-password" }       \
+  }
 
 // Per-owner Companion mDNS hostname, resolved at the start of each sync.
 #define COMPANION_HOSTNAME "josh-memo"
