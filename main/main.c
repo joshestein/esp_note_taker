@@ -135,6 +135,8 @@ static const char *sync_error_text(sync_error_t error) {
   switch (error) {
   case SYNC_ERR_WIFI:
     return "Sync failed:\nno Wi-Fi";
+  case SYNC_ERR_NO_KNOWN_WIFI:
+    return "Sync failed:\nno known Wi-Fi";
   case SYNC_ERR_NO_COMPANION:
     return "Sync failed:\nno companion";
   case SYNC_ERR_UNAUTHORIZED:
