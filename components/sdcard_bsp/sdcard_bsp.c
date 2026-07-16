@@ -75,6 +75,25 @@ static int scan_dir_max(const char *path) {
   return max;
 }
 
+// Must scan the Synced folder too, not just the top level. Sync renames each
+// uploaded Capture out of the top level and into SYNCED_DIR, so a top-level-only
+// scan sees the counter fall back after every sync -- and the next Capture
+// reuses a number that is already taken. The protocol is idempotent by filename,
+// so re-uploading that name would silently overwrite a different memo on the
+// Companion. Scanning both directories keeps the sequence monotonic.
+// Returns -1 if either directory failed to open. A partial max is untrustworthy:
+// the collapse-after-sync hazard lives in the SYNCED_DIR numbers, so a failed
+// synced scan is as dangerous as a failed top-level scan. Fail closed and let the
+// caller refuse to Capture rather than reuse a number.
+int sdcard_scan_max(void) {
+  int top = scan_dir_max(SD_MOUNT_POINT);
+  int synced = scan_dir_max(SYNCED_DIR);
+  if (top < 0 || synced < 0) {
+    return -1;
+  }
+  return (top > synced) ? top : synced;
+}
+
 float sdcard_get_value(void) {
   if (card_host != NULL) {
     return (float)(card_host->csd.capacity) / 2048 / 1024; // G
