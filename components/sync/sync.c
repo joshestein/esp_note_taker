@@ -598,13 +598,12 @@ static void sync_task(void *arg) {
   snprintf(base_url, sizeof(base_url), "http://%s:%d", companion_ip,
            COMPANION_PORT);
 
-  // One keep-alive client for every request in the session: no TCP handshake
-  // per file (ADR 0006). The bearer token is set once here and rides every
-  // request, since the Companion 401s anything without it.
+  // One client handle for the whole session: the bearer token is set once here
+  // and rides every request, since the Companion 401s anything without it. The
+  // socket is not held open between requests.
   esp_http_client_config_t http_cfg = {
       .url = base_url,
       .timeout_ms = HTTP_TIMEOUT_MS,
-      .keep_alive_enable = true,
   };
   client = esp_http_client_init(&http_cfg);
   if (client == NULL) {
