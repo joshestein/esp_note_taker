@@ -51,12 +51,13 @@ esp_err_t sdcard_init(void) {
   return ESP_OK;
 }
 
-// Highest note_NNNN found in `path`, or 0.
+// Highest note_NNNN found in `path`, 0 if the directory is empty, or -1 if the
+// directory could not be opened. 
 static int scan_dir_max(const char *path) {
   DIR *dir = opendir(path);
   if (dir == NULL) {
     ESP_LOGE(TAG, "Failed to open %s to scan for existing recordings", path);
-    return 0;
+    return -1;
   }
 
   int max = 0;
