@@ -275,8 +275,8 @@ void app_main(void) {
     }
 
     // A press that arrived in the same tick as one of the transitions above was
-    // made while the old state still held, so it is not an instruction about the
-    // state we just moved into. Drop it.
+    // made while the old state still held, so it is not an instruction about
+    // the state we just moved into. Drop it.
     if (state != arrived_in) {
       continue;
     }
