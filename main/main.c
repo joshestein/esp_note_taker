@@ -40,6 +40,17 @@ static esp_err_t init_led(void) {
   return gpio_config(&io_conf);
 }
 
+static esp_err_t init_power(void) {
+  gpio_config_t io_conf = {
+      .pin_bit_mask = (1ULL << VBAT_PWR_PIN),
+      .mode = GPIO_MODE_OUTPUT,
+      .pull_up_en = GPIO_PULLUP_DISABLE,
+      .pull_down_en = GPIO_PULLDOWN_DISABLE,
+      .intr_type = GPIO_INTR_DISABLE,
+  };
+  return gpio_config(&io_conf);
+}
+
 static void record_task(void *arg) {
   const size_t buffer_size = 1024;
   uint8_t *buffer = malloc(buffer_size);
@@ -179,6 +190,9 @@ static void enter_deep_sleep(void) {
 
 void app_main(void) {
   app_state_t state = IDLE;
+
+  ESP_ERROR_CHECK(init_power());
+  gpio_set_level(VBAT_PWR_PIN, 1); // Power starts on
 
   // If we woke from Deep Sleep via the Record Button, honor the "instant
   // Capture" promise by starting to record as soon as the SD card and codec are

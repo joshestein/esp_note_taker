@@ -29,6 +29,7 @@
 #define PA_CTRL_PIN GPIO_NUM_46
 
 #define LED_PIN GPIO_NUM_3
+#define VBAT_PWR_PIN GPIO_NUM_17
 
 // E-paper display (Waveshare ESP32-S3-Touch-ePaper-1.54, SSD1681)
 #define EPD_CS_PIN GPIO_NUM_11
