@@ -42,6 +42,7 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 
 ## Power management
 
+- [x] **VBAT power-hold latch** (`VBAT_PWR_PIN` GPIO17): the board's soft power path only feeds the system rail from the battery while GPIO17 is driven high; USB 5V feeds it regardless, so the gap was invisible on the bench (worked on USB, dead the instant it was unplugged -- buttons did nothing, e-paper held its last image, looked bricked). `init_power()` asserts it **first line** of `app_main`, before the slow inits (sdcard/audio/sync), so a battery cold boot latches before the momentary PWR-button power drops. Drives the output latch **high before** `gpio_config` enables the driver, so the register's default LOW never glitches the latch off mid-config. No software power-off path yet (would drive GPIO17 low; today Deep Sleep is the only park)
 - [ ] Light sleep in Idle (per ADR 0001), GPIO wake on either button
   - No `gpio_hold` plumbing needed for the audio-amp gate: light sleep auto-retains digital GPIO output state, so `Audio_PWR_PIN` (GPIO42) stays off through Idle on its own. (GPIO42 is not RTC-capable -- >21 -- so it couldn't be held or used as a wake source under deep sleep anyway; another point for light sleep. Wake pins GPIO0/GPIO18 are both RTC-capable.)
 
