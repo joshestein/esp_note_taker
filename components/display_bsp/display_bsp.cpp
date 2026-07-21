@@ -37,6 +37,15 @@ static lv_obj_t *idle_screen = NULL;
 static lv_obj_t *recording_screen = NULL;
 static lv_obj_t *deep_sleep_screen = NULL;
 
+// The Battery ring's five segments, held on the (build-once) idle_screen so the
+// level can be re-applied on each Idle repaint without rebuilding the screen.
+#define BATTERY_SEGMENTS 5
+#define RING_DIAMETER 190
+#define RING_GAP_DEG 8
+#define RING_WIDTH_EMPTY 3
+#define RING_WIDTH_FULL 12
+static lv_obj_t *battery_segments[BATTERY_SEGMENTS];
+
 // The two exceptions to the build-once rule: the Menu's cards are rebuilt on
 // every paint (the Selection moves) and the message screen's text changes. Held
 // so the previous one can be freed after the new one is loaded.
@@ -111,9 +120,51 @@ static void set_white_background(lv_obj_t *scr) {
   lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 }
 
-static void build_idle_screen(void) {
+// Build the five ring segments as background-only arcs (no knob, no value
+// indicator) around the panel edge. Fill state is set later by
+// apply_battery_level, which flips each segment's arc width.
+static void build_battery_ring(lv_obj_t *scr) {
+  for (int i = 0; i < BATTERY_SEGMENTS; i++) {
+    lv_obj_t *seg = lv_arc_create(scr);
+    lv_obj_set_size(seg, RING_DIAMETER, RING_DIAMETER);
+    lv_obj_center(seg);
+    lv_obj_remove_flag(seg, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_style(seg, NULL, LV_PART_KNOB);
+    lv_obj_set_style_bg_opa(seg, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(seg, 0, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(seg, lv_color_black(), LV_PART_MAIN);
+    // Only the background arc is drawn; kill the value indicator.
+    lv_arc_set_value(seg, 0);
+    lv_obj_set_style_arc_width(seg, 0, LV_PART_INDICATOR);
+
+    const int start = i * 360 / BATTERY_SEGMENTS + RING_GAP_DEG / 2;
+    const int end = (i + 1) * 360 / BATTERY_SEGMENTS - RING_GAP_DEG / 2;
+    lv_arc_set_bg_angles(seg, start, end);
+
+    battery_segments[i] = seg;
+  }
+}
+
+// Fill the first `level` segments thick, the rest thin. Both are black (the
+// panel is 1-bit); thickness is the only cue, so count the fat segments.
+static void apply_battery_level(int level) {
+  if (level < 0) {
+    level = 0;
+  } else if (level > BATTERY_SEGMENTS) {
+    level = BATTERY_SEGMENTS;
+  }
+  for (int i = 0; i < BATTERY_SEGMENTS; i++) {
+    const int width = (i < level) ? RING_WIDTH_FULL : RING_WIDTH_EMPTY;
+    lv_obj_set_style_arc_width(battery_segments[i], width, LV_PART_MAIN);
+  }
+}
+
+static void build_idle_screen(int level) {
   idle_screen = lv_obj_create(NULL);
   set_white_background(idle_screen);
+
+  build_battery_ring(idle_screen);
+  apply_battery_level(level);
 
   lv_obj_t *label = lv_label_create(idle_screen);
   lv_label_set_text(label, "ready");
@@ -213,7 +264,7 @@ static void build_deep_sleep_screen(void) {
   lv_obj_center(label);
 }
 
-esp_err_t display_init(void) {
+esp_err_t display_init(int initial_level) {
   // 1. Power the panel. EPD_PWR_PIN is active-low (LOW = on); without this the
   //    driver's BUSY wait never releases.
   gpio_config_t pwr = {};
@@ -274,7 +325,7 @@ esp_err_t display_init(void) {
   xTaskCreatePinnedToCore(lvgl_task, "LVGL", 8 * 1024, NULL, 4, NULL, 1);
 
   if (lvgl_lock(-1)) {
-    build_idle_screen();
+    build_idle_screen(initial_level);
     build_recording_screen();
     build_deep_sleep_screen();
     lv_screen_load(idle_screen);
@@ -308,8 +359,9 @@ void display_show_recording(void) {
   }
 }
 
-void display_show_idle(bool full_refresh) {
+void display_show_idle(int level, bool full_refresh) {
   if (lvgl_lock(-1)) {
+    apply_battery_level(level);
     full_refresh_pending = full_refresh;
     lv_screen_load(idle_screen);
     lv_obj_invalidate(idle_screen);
