@@ -1,5 +1,6 @@
 #include "app_events.h"
 #include "audio_bsp.h"
+#include "battery_bsp.h"
 #include "button_input.h"
 #include "config.h"
 #include "display_bsp.h"
@@ -209,6 +210,7 @@ void app_main(void) {
   int note_counter = sdcard_scan_max();
   const bool capture_ready = note_counter >= 0;
   ESP_ERROR_CHECK(audio_bsp_init());
+  ESP_ERROR_CHECK(battery_init());
   ESP_ERROR_CHECK(init_led());
   gpio_set_level(LED_PIN, 1); // LED starts off
 
@@ -218,7 +220,7 @@ void app_main(void) {
     state = RECORDING;
   }
 
-  ESP_ERROR_CHECK(display_init());
+  ESP_ERROR_CHECK(display_init(battery_level()));
   if (state == RECORDING) {
     display_show_recording();
   } else if (wake_to_record && !capture_ready) {
@@ -253,7 +255,7 @@ void app_main(void) {
       }
 
       state = IDLE;
-      display_show_idle(false);
+      display_show_idle(battery_level(), false);
     }
 
     if ((uxBits & SYNC_ENDED_BIT) && (state == SYNCING)) {
@@ -270,7 +272,7 @@ void app_main(void) {
     if (((uxBits & MENU_EXIT_BIT) != 0 || (uxBits & MENU_TIMEOUT_BIT) != 0) &&
         (state == MAIN_MENU)) {
       menu_exit();
-      display_show_idle(true);
+      display_show_idle(battery_level(), true);
       state = IDLE;
     }
 
@@ -300,7 +302,7 @@ void app_main(void) {
             state = SYNCING;
           } else {
             ESP_LOGE(TAG, "Failed to start sync task");
-            display_show_idle(true);
+            display_show_idle(battery_level(), true);
             state = IDLE;
           }
           break;
