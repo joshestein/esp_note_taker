@@ -61,8 +61,10 @@ The Menu card showing free space and number of Captures. Read-only: no Card acti
 ## Sleep (menu card)
 The Menu card whose Card action enters Deep Sleep. The only way to park the device. See ADR 0007.
 
-## Battery glyph
-An always-visible battery-level glyph on the Idle screen (read via `VBAT_PWR_PIN`, GPIO17), not a Menu card.
+## Battery ring
+A segmented ring on the Idle screen showing battery level: five voltage bands (Critical/Low/Medium/High/Full), one filled segment each, all-outline before the first read. Level is the LiPo terminal voltage on ADC1 channel 3 (GPIO4, 1:2 divider) -- distinct from `VBAT_PWR_PIN` (GPIO17), the power-hold latch. Voltage-inferred, not a fuel gauge: sags under load, reads high while charging.
+
+**Not live** -- reflects the last Idle repaint (boot, capture end, menu exit), since Idle is Light Sleep. Idle screen only, not Recording/Menu/Sync-result. Display-only in v1: Critical does not stop a Capture (see Auto-stop).
 
 ## Idle
 The device state when no Capture is in progress. The CPU is in Light Sleep; either button wakes it. The e-paper display retains its last image; the audio codec is powered down (see ADR 0002); the SD card stays mounted for fast record start.
