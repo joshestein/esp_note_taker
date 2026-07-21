@@ -9,16 +9,19 @@ extern "C" {
 #endif
 
 // Powers the panel (EPD_PWR_PIN LOW), inits the driver with a full refresh,
-// starts LVGL and its handler task, and paints the initial Idle screen.
-// Best-effort: the caller must NOT abort a Capture on failure -- the LED
+// starts LVGL and its handler task, and paints the initial Idle screen with the
+// Battery ring at `initial_level` (see battery_bsp.h; 0 = all outline, 5 =
+// full). Best-effort: the caller must NOT abort a Capture on failure -- the LED
 // Recording Indicator is the primary tell (see CONTEXT.md, ADR 0005).
-esp_err_t display_init(void);
+esp_err_t display_init(int initial_level);
 
 // Paint the Recording Screen (filled circle + "recording"), partial refresh.
 void display_show_recording(void);
 
-// Paint the minimal Idle screen. Defaults to a partial refresh, but a full refresh can be requested
-void display_show_idle(bool full_refresh);
+// Paint the Idle screen with the Battery ring at `level` (0 = all outline, 5 =
+// full; see battery_bsp.h). Defaults to a partial refresh, but a full refresh
+// can be requested.
+void display_show_idle(int level, bool full_refresh);
 
 // Paint the Menu: every label as a card, the one at `selected` filled, the rest
 // outlined. The caller owns the labels and their order.
