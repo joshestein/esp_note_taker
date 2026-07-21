@@ -42,6 +42,8 @@ static esp_err_t init_led(void) {
 }
 
 static esp_err_t init_power(void) {
+  // Load the output latch high BEFORE enabling the output driver
+  gpio_set_level(VBAT_PWR_PIN, 1);
   gpio_config_t io_conf = {
       .pin_bit_mask = (1ULL << VBAT_PWR_PIN),
       .mode = GPIO_MODE_OUTPUT,
@@ -192,8 +194,7 @@ static void enter_deep_sleep(void) {
 void app_main(void) {
   app_state_t state = IDLE;
 
-  ESP_ERROR_CHECK(init_power());
-  gpio_set_level(VBAT_PWR_PIN, 1); // Power starts on
+  ESP_ERROR_CHECK(init_power()); // holds the VBAT latch so battery survives USB unplug
 
   // If we woke from Deep Sleep via the Record Button, honor the "instant
   // Capture" promise by starting to record as soon as the SD card and codec are
