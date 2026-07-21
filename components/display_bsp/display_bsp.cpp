@@ -41,9 +41,10 @@ static lv_obj_t *deep_sleep_screen = NULL;
 // level can be re-applied on each Idle repaint without rebuilding the screen.
 #define BATTERY_SEGMENTS 5
 #define RING_DIAMETER 190
-#define RING_GAP_DEG 8
-#define RING_WIDTH_EMPTY 3
-#define RING_WIDTH_FULL 12
+#define RING_GAP_DEG 16
+#define RING_START_DEG 270 // 12 o'clock (LVGL 0deg is 3 o'clock, +90 per quarter)
+#define RING_WIDTH_EMPTY 2
+#define RING_WIDTH_FULL 9
 static lv_obj_t *battery_segments[BATTERY_SEGMENTS];
 
 // The two exceptions to the build-once rule: the Menu's cards are rebuilt on
@@ -137,6 +138,9 @@ static void build_battery_ring(lv_obj_t *scr) {
     lv_arc_set_value(seg, 0);
     lv_obj_set_style_arc_width(seg, 0, LV_PART_INDICATOR);
 
+    // Rotate so segment 0 begins at 12 o'clock; rotation offsets the angles
+    // without letting any segment's range wrap past 360.
+    lv_arc_set_rotation(seg, RING_START_DEG);
     const int start = i * 360 / BATTERY_SEGMENTS + RING_GAP_DEG / 2;
     const int end = (i + 1) * 360 / BATTERY_SEGMENTS - RING_GAP_DEG / 2;
     lv_arc_set_bg_angles(seg, start, end);
