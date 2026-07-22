@@ -7,6 +7,7 @@
 #include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_pm.h"
 #include "esp_sleep.h"
 #include "freertos/idf_additions.h"
 #include "menu.h"
@@ -227,6 +228,9 @@ void app_main(void) {
   } else if (wake_to_record && !capture_ready) {
     display_show_message("SD scan failed", true);
   }
+
+  esp_pm_config_t light_sleep_config = { .max_freq_mhz=160, .min_freq_mhz=160, .light_sleep_enable=true };
+  ESP_ERROR_CHECK(esp_pm_configure(&light_sleep_config));
 
   for (;;) {
     const EventBits_t uxBits = app_events_wait();
