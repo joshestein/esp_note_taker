@@ -8,9 +8,16 @@
 #include "esp_codec_dev_defaults.h"
 #include "esp_codec_dev_types.h"
 #include "esp_err.h"
+#include <stdint.h>
 
 #define VOICE_VOLUME 80
 #define MIC_GAIN 20
+
+/* Bytes discarded at record start while the mic powers up and settles (a DC
+ * transient that clips as an audible 'pop'). 8192 bytes = 4096 samples = 256ms
+ * at 16kHz mono 16-bit. Dropped in DISCARD_CHUNK-sized reads. */
+#define DISCARD_BYTES 8192
+#define DISCARD_CHUNK 1024
 
 static const char *TAG = "audio_bsp";
 static i2s_chan_handle_t tx_handle = NULL;
@@ -139,6 +146,13 @@ esp_err_t audio_bsp_record_start(void) {
   ESP_ERROR_CHECK(
       (esp_err_t)esp_codec_dev_set_out_vol(codec_handle, VOICE_VOLUME));
   ESP_ERROR_CHECK((esp_err_t)esp_codec_dev_set_in_gain(codec_handle, MIC_GAIN));
+
+  /* Drop the mic power-up transient before real capture (see DISCARD_BYTES) */
+  static uint8_t throwaway[DISCARD_CHUNK];
+  for (int i = 0; i < DISCARD_BYTES / DISCARD_CHUNK; i++) {
+    audio_bsp_record(throwaway, DISCARD_CHUNK);
+  }
+
   return ESP_OK;
 }
 
