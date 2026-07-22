@@ -19,3 +19,6 @@ CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
 CONFIG_PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP=y
 
 CONFIG_ESP_SLEEP_DEBUG=y
+
+# We moved LVGL rendering onto main task, so must cover full lv_refr_now + flush_cb
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
