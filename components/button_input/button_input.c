@@ -15,10 +15,10 @@ static void button_set_bit_cb(void *arg, void *usr_data) {
   app_events_set((EventBits_t)(uintptr_t)usr_data);
 }
 
-// A GPIO button that raises `bit` on a short press. Both buttons are wired the
-// same way -- active low, power-save enabled so they still wake us from sleep.
+// A GPIO button that raises `bit` on `event`. Both buttons are wired the same
+// way -- active low, power-save enabled so they still wake us from sleep.
 static esp_err_t add_button(gpio_num_t gpio, const char *name, EventBits_t bit,
-                            button_handle_t *out) {
+                            button_event_t event, button_handle_t *out) {
   const button_config_t cfg = {0};
   const button_gpio_config_t gpio_cfg = {
       .gpio_num = gpio,
@@ -32,20 +32,23 @@ static esp_err_t add_button(gpio_num_t gpio, const char *name, EventBits_t bit,
     return err;
   }
 
-  return iot_button_register_cb(*out, BUTTON_SINGLE_CLICK, NULL,
-                                button_set_bit_cb, (void *)(uintptr_t)bit);
+  return iot_button_register_cb(*out, event, NULL, button_set_bit_cb,
+                                (void *)(uintptr_t)bit);
 }
 
 esp_err_t button_init(void) {
+  // Record button fires on press-down (not single-click) so capture stops the
+  // instant the button actuates -- before the physical click reaches the mic.
   button_handle_t record_btn = NULL;
-  esp_err_t err =
-      add_button(RECORD_BUTTON, "Record", RECORD_BUTTON_BIT, &record_btn);
+  esp_err_t err = add_button(RECORD_BUTTON, "Record", RECORD_BUTTON_BIT,
+                             BUTTON_PRESS_DOWN, &record_btn);
   if (err != ESP_OK) {
     return err;
   }
 
   button_handle_t menu_btn = NULL;
-  err = add_button(MENU_BUTTON, "Menu", MENU_BUTTON_BIT, &menu_btn);
+  err = add_button(MENU_BUTTON, "Menu", MENU_BUTTON_BIT, BUTTON_SINGLE_CLICK,
+                   &menu_btn);
   if (err != ESP_OK) {
     return err;
   }
