@@ -229,6 +229,7 @@ void app_main(void) {
     display_show_message("SD scan failed", true);
   }
 
+  esp_sleep_enable_gpio_switch(false); // Don't disable GPIO configs during sleep
   esp_pm_config_t light_sleep_config = { .max_freq_mhz=160, .min_freq_mhz=160, .light_sleep_enable=true };
   ESP_ERROR_CHECK(esp_pm_configure(&light_sleep_config));
 
