@@ -14,7 +14,7 @@ The PWR button (GPIO18); the code names it `MENU_BUTTON`. Behaviors, all context
 - During a Capture: ignored (dropped, not queued).
 
 ## Menu
-A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to the Card action. Entered from Idle via a short Menu Button press. Cards: Sync, Storage, Sleep, all on screen at once. Flat: every card is a leaf with one action; no sub-lists, no confirm steps. (Recordings is a designed-but-unbuilt fourth card, and the first that would need a second level.)
+A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to the Card action. Entered from Idle via a short Menu Button press. Cards: Sync and Sleep, both on screen at once. Flat: every card is a leaf with one action; no sub-lists, no confirm steps. (Storage and Recordings are designed but unbuilt; Recordings is the first that would need a second level.)
 
 ## One-card stepping
 A Menu Button press advances the Selection by exactly one card. Names the step granularity, not the visibility: the Menu shows all cards at once, while the Recordings list (unbounded) would show one Capture at a time. Cards form a ring -- stepping past the last wraps to the first, and never leaves the Menu.
