@@ -291,6 +291,10 @@ esp_err_t display_init(int initial_level) {
   build_recording_screen();
   build_deep_sleep_screen();
   lv_screen_load(idle_screen);
+
+  full_refresh_pending = true;
+  lv_refr_now(display);
+
   return ESP_OK;
 }
 
