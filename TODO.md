@@ -146,3 +146,4 @@ Implements the client side of `docs/sync-protocol.md` (reasoning in ADR 0003 / 0
 - [ ] Bonus: device-hosted LAN download page (no transcription)
 - [ ] Manual time-set UI -- likely unnecessary once sync time-set (Companion `Date` header) works
 - [ ] There is a brief pop at the start of all recordings - can we remove it?
+- [ ] Make font text larger
