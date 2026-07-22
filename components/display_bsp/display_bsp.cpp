@@ -7,17 +7,10 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
 #include "lvgl.h"
+#include <cstdint>
 
 static const char *TAG = "display_bsp";
-
-// LVGL port tunables (from the Waveshare 1.54" example user_config.h).
-#define LVGL_TICK_PERIOD_MS 2
-#define LVGL_TASK_MAX_DELAY_MS 500
-#define LVGL_TASK_MIN_DELAY_MS 1
 
 // The flush glue renders LVGL's RGB565 buffer and thresholds each pixel to
 // black/white, so keep LV_COLOR_DEPTH at 16 to match this arithmetic.
@@ -25,7 +18,6 @@ static const char *TAG = "display_bsp";
 #define BUFF_SIZE (EPD_WIDTH * EPD_HEIGHT * BYTES_PER_PIXEL)
 
 static epaper_driver_display *driver = NULL;
-static SemaphoreHandle_t lvgl_mux = NULL;
 
 // Held so display_show_deep_sleep can force a synchronous refresh through it.
 static lv_display_t *display = NULL;
@@ -42,7 +34,8 @@ static lv_obj_t *deep_sleep_screen = NULL;
 #define BATTERY_SEGMENTS 5
 #define RING_DIAMETER 190
 #define RING_GAP_DEG 16
-#define RING_START_DEG 270 // 12 o'clock (LVGL 0deg is 3 o'clock, +90 per quarter)
+#define RING_START_DEG                                                         \
+  270 // 12 o'clock (LVGL 0deg is 3 o'clock, +90 per quarter)
 #define RING_WIDTH_EMPTY 2
 #define RING_WIDTH_FULL 9
 static lv_obj_t *battery_segments[BATTERY_SEGMENTS];
@@ -53,17 +46,9 @@ static lv_obj_t *battery_segments[BATTERY_SEGMENTS];
 static lv_obj_t *menu_screen = NULL;
 static lv_obj_t *message_screen = NULL;
 
-// Read and cleared by flush_cb. Set under the LVGL lock before the screen load
-// that triggers the flush -- the flush itself runs later, on the LVGL task.
+// Read and cleared by flush_cb. Set before the screen load that triggers the
+// flush; both run on the same (calling) task, since paints are synchronous.
 static bool full_refresh_pending = false;
-
-static bool lvgl_lock(int timeout_ms) {
-  TickType_t ticks =
-      (timeout_ms == -1) ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
-  return xSemaphoreTake(lvgl_mux, ticks) == pdTRUE;
-}
-
-static void lvgl_unlock(void) { xSemaphoreGive(lvgl_mux); }
 
 // LVGL v9 flush callback, lifted from 10_LVGL_V9_Test. Converts the rendered
 // RGB565 area to 1-bit black/white and pushes it via a partial refresh.
@@ -72,7 +57,8 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
   driver->EPD_Clear();
   for (int y = area->y1; y <= area->y2; y++) {
     for (int x = area->x1; x <= area->x2; x++) {
-      uint8_t color = (*buffer < 0x7fff) ? DRIVER_COLOR_BLACK : DRIVER_COLOR_WHITE;
+      uint8_t color =
+          (*buffer < 0x7fff) ? DRIVER_COLOR_BLACK : DRIVER_COLOR_WHITE;
       driver->EPD_DrawColorPixel(x, y, color);
       buffer++;
     }
@@ -93,22 +79,8 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
   lv_disp_flush_ready(disp);
 }
 
-static void tick_cb(void *arg) { lv_tick_inc(LVGL_TICK_PERIOD_MS); }
-
-static void lvgl_task(void *arg) {
-  uint32_t delay_ms = LVGL_TASK_MAX_DELAY_MS;
-  for (;;) {
-    if (lvgl_lock(-1)) {
-      delay_ms = lv_timer_handler();
-      lvgl_unlock();
-    }
-    if (delay_ms > LVGL_TASK_MAX_DELAY_MS) {
-      delay_ms = LVGL_TASK_MAX_DELAY_MS;
-    } else if (delay_ms < LVGL_TASK_MIN_DELAY_MS) {
-      delay_ms = LVGL_TASK_MIN_DELAY_MS;
-    }
-    vTaskDelay(pdMS_TO_TICKS(delay_ms));
-  }
+static uint32_t tick_cb(void) {
+  return (uint32_t)(esp_timer_get_time() / 1000);
 }
 
 // --- Screen builders ---------------------------------------------------------
@@ -176,8 +148,8 @@ static void build_idle_screen(int level) {
   lv_obj_center(label);
 }
 
-// Rebuilt on every paint, since the text changes. Returns a detached screen; the
-// caller loads it and frees the previous one.
+// Rebuilt on every paint, since the text changes. Returns a detached screen;
+// the caller loads it and frees the previous one.
 static lv_obj_t *build_message_screen(const char *text) {
   lv_obj_t *scr = lv_obj_create(NULL);
   set_white_background(scr);
@@ -305,98 +277,70 @@ esp_err_t display_init(int initial_level) {
   lv_display_t *disp = lv_display_create(EPD_WIDTH, EPD_HEIGHT);
   display = disp;
   lv_display_set_flush_cb(disp, flush_cb);
+  lv_tick_set_cb(tick_cb);
 
   uint8_t *buf = (uint8_t *)heap_caps_malloc(BUFF_SIZE, MALLOC_CAP_SPIRAM);
   if (buf == NULL) {
     ESP_LOGE(TAG, "Failed to allocate LVGL draw buffer");
     return ESP_ERR_NO_MEM;
   }
-  lv_display_set_buffers(disp, buf, NULL, BUFF_SIZE, LV_DISPLAY_RENDER_MODE_FULL);
+  lv_display_set_buffers(disp, buf, NULL, BUFF_SIZE,
+                         LV_DISPLAY_RENDER_MODE_FULL);
 
-  esp_timer_create_args_t tick_args = {};
-  tick_args.callback = &tick_cb;
-  tick_args.name = "lvgl_tick";
-  esp_timer_handle_t tick_timer = NULL;
-  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_timer_create(&tick_args, &tick_timer));
-  ESP_ERROR_CHECK_WITHOUT_ABORT(
-      esp_timer_start_periodic(tick_timer, LVGL_TICK_PERIOD_MS * 1000));
-
-  lvgl_mux = xSemaphoreCreateMutex();
-  if (lvgl_mux == NULL) {
-    ESP_LOGE(TAG, "Failed to create LVGL mutex");
-    return ESP_FAIL;
-  }
-  xTaskCreatePinnedToCore(lvgl_task, "LVGL", 8 * 1024, NULL, 4, NULL, 1);
-
-  if (lvgl_lock(-1)) {
-    build_idle_screen(initial_level);
-    build_recording_screen();
-    build_deep_sleep_screen();
-    lv_screen_load(idle_screen);
-    lvgl_unlock();
-  }
+  build_idle_screen(initial_level);
+  build_recording_screen();
+  build_deep_sleep_screen();
+  lv_screen_load(idle_screen);
   return ESP_OK;
 }
 
-// The one blocking paint. Every other display_show_* hands the screen to LVGL
-// and returns, leaving the flush to the LVGL task -- fine, because something
-// else is always coming. Nothing is coming after this one: the caller cuts power
-// as soon as it returns, so an async flush would park the panel half-written,
-// and that garbage is what persists (e-paper holds its image with no power).
-// lv_refr_now renders and runs flush_cb on THIS task, and flush_cb blocks on the
-// panel's BUSY line, so this returns only once the panel has finished updating.
-// Full refresh, because there is no next refresh to clean up partial ghosting.
+// Every paint is synchronous: lv_refr_now renders and runs flush_cb on THIS
+// task, and flush_cb blocks on the panel's BUSY line, so a display_show_*
+// returns only once the panel has finished updating. That matters most here --
+// the caller cuts power as soon as this returns, so a deferred flush would park
+// the panel half-written, and that garbage is what persists (e-paper holds its
+// image with no power). Full refresh, because there is no next refresh to clean
+// up partial ghosting.
 void display_show_deep_sleep(void) {
-  if (lvgl_lock(-1)) {
-    full_refresh_pending = true;
-    lv_screen_load(deep_sleep_screen);
-    lv_refr_now(display);
-    lvgl_unlock();
-  }
+  full_refresh_pending = true;
+  lv_screen_load(deep_sleep_screen);
+  lv_refr_now(display);
 }
 
 void display_show_recording(void) {
-  if (lvgl_lock(-1)) {
-    full_refresh_pending = false;
-    lv_screen_load(recording_screen);
-    lvgl_unlock();
-  }
+  full_refresh_pending = false;
+  lv_screen_load(recording_screen);
+  lv_refr_now(display);
 }
 
 void display_show_idle(int level, bool full_refresh) {
-  if (lvgl_lock(-1)) {
-    apply_battery_level(level);
-    full_refresh_pending = full_refresh;
-    lv_screen_load(idle_screen);
-    lv_obj_invalidate(idle_screen);
-    lvgl_unlock();
-  }
+  apply_battery_level(level);
+  full_refresh_pending = full_refresh;
+  lv_screen_load(idle_screen);
+  lv_obj_invalidate(idle_screen);
+  lv_refr_now(display);
 }
 
 void display_show_message(const char *text, bool full_refresh) {
-  if (lvgl_lock(-1)) {
-    full_refresh_pending = full_refresh;
-    lv_obj_t *previous = message_screen;
-    message_screen = build_message_screen(text);
-    lv_screen_load(message_screen);
-    if (previous != NULL) {
-      lv_obj_delete(previous);
-    }
-    lvgl_unlock();
+  full_refresh_pending = full_refresh;
+  lv_obj_t *previous = message_screen;
+  message_screen = build_message_screen(text);
+  lv_screen_load(message_screen);
+  if (previous != NULL) {
+    lv_obj_delete(previous);
   }
+  lv_refr_now(display);
 }
 
 void display_show_menu(const char *const *labels, int count, int selected) {
-  if (lvgl_lock(-1)) {
-    full_refresh_pending = false;
-    // Load the new screen before freeing the old one -- the old one is still
-    // the active screen until lv_screen_load returns.
-    lv_obj_t *previous = menu_screen;
-    menu_screen = build_menu_screen(labels, count, selected);
-    lv_screen_load(menu_screen);
-    if (previous != NULL) {
-      lv_obj_delete(previous);
-    }
-    lvgl_unlock();
+  full_refresh_pending = false;
+  // Load the new screen before freeing the old one -- the old one is still
+  // the active screen until lv_screen_load returns.
+  lv_obj_t *previous = menu_screen;
+  menu_screen = build_menu_screen(labels, count, selected);
+  lv_screen_load(menu_screen);
+  if (previous != NULL) {
+    lv_obj_delete(previous);
   }
+  lv_refr_now(display);
 }
