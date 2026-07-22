@@ -20,6 +20,9 @@
 
 static const char *TAG = "main";
 
+// Awake window at cold boot before light sleep engages
+#define PM_BOOT_DELAY_MS 3000
+
 typedef enum {
   IDLE = 0,
   MAIN_MENU,
@@ -230,7 +233,17 @@ void app_main(void) {
   }
 
   esp_sleep_enable_gpio_switch(false); // Don't disable GPIO configs during sleep
-  esp_pm_config_t light_sleep_config = { .max_freq_mhz=160, .min_freq_mhz=160, .light_sleep_enable=true };
+
+  // Stay awake briefly before enabling light sleep. Once PM is on, Idle sleeps
+  // within seconds and the USB-Serial-JTAG drops, so flash problems.
+  if (!wake_to_record) {
+    ESP_LOGI(TAG, "Boot flash window: enabling light sleep in %d ms",
+             PM_BOOT_DELAY_MS);
+    vTaskDelay(pdMS_TO_TICKS(PM_BOOT_DELAY_MS));
+  }
+
+  esp_pm_config_t light_sleep_config = {
+      .max_freq_mhz = 160, .min_freq_mhz = 160, .light_sleep_enable = true};
   ESP_ERROR_CHECK(esp_pm_configure(&light_sleep_config));
 
   for (;;) {
