@@ -147,3 +147,5 @@ Implements the client side of `docs/sync-protocol.md` (reasoning in ADR 0003 / 0
 - [ ] Manual time-set UI -- likely unnecessary once sync time-set (Companion `Date` header) works
 - [ ] There is a brief pop at the start of all recordings - can we remove it?
 - [ ] Make font text larger
+- [ ] Playback recordings
+- [ ] Fix not waking from deep sleep to record
