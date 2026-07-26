@@ -14,10 +14,10 @@ The PWR button (GPIO18); the code names it `MENU_BUTTON`. Behaviors, all context
 - During a Capture: ignored (dropped, not queued).
 
 ## Menu
-A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to the Card action. Entered from Idle via a short Menu Button press. Cards: Sync and Sleep, both on screen at once. Flat: every card is a leaf with one action; no sub-lists, no confirm steps. (Storage and Recordings are designed but unbuilt; Recordings is the first that would need a second level.)
+A mode, mutually exclusive with recording: no Capture can start while in the Menu, and the Record Button is repurposed to the Card action. Entered from Idle via a short Menu Button press. Cards: Sync, Sleep and Power off, all on screen at once. Flat: every card is a leaf with one action; no sub-lists, no confirm steps. (Storage and Recordings are designed but unbuilt; Recordings is the first that would need a second level.)
 
 ## Card
-One tile in the Menu: a label plus (except Storage) a single Card action. Built: Sync, Sleep. Designed, unbuilt: Storage, Recordings.
+One tile in the Menu: a label plus (except Storage) a single Card action. Built: Sync, Sleep, Power off. Designed, unbuilt: Storage, Recordings. Three cards is the layout's current ceiling at 44px tall; a fourth needs the card height reduced.
 
 ## Wearer
 The person using the device. Assumed to operate it by feel -- two buttons, an LED, glanceable e-paper -- often without looking closely. Motivates the always-on indicators and the no-confirm Menu.
@@ -32,7 +32,7 @@ The one card the Record Button will act on. Rendered filled; unselected cards ar
 ~30s with no button press auto-exits the Menu to Idle. Suspended during Syncing.
 
 ## Card action
-What the Record Button does on the Selection. Fires immediately -- no confirmation step. Sync: run the Sync handshake. Storage: none (read-only). Sleep: enter Deep Sleep.
+What the Record Button does on the Selection. Fires immediately -- no confirmation step. Sync: run the Sync handshake. Storage: none (read-only). Sleep: enter Deep Sleep. Power off: enter Off.
 
 ## Recordings (menu card)
 **Designed, not built** (depends on the unbuilt playback path). The Menu card listing existing Captures newest-first, one at a time. The Record Button plays the shown Capture through the speaker.
@@ -66,6 +66,9 @@ A shared bearer token, hardcoded on both sides, sent as `Authorization: Bearer <
 
 ## Sleep (menu card)
 The Menu card whose Card action enters Deep Sleep. The only way to park the device. See ADR 0007.
+
+## Power off (menu card)
+The Menu card whose Card action enters Off. Distinct from Sleep: Sleep parks the CPU with the power latch held, this opens the latch and kills the rail. A no-op on USB, which reports rather than pretending. See ADR 0011.
 
 ## Battery ring
 A segmented ring on the Idle screen: five battery bands (Critical/Low/Medium/High/Full), one filled segment each, all-outline before the first read. Voltage-inferred, not a fuel gauge: sags under load, reads high while charging. **Not live** -- reflects the last Idle repaint (boot, capture end, menu exit), since Idle is Light Sleep. Idle screen only. Display-only in v1: Critical does not stop a Capture (see Auto-stop).
