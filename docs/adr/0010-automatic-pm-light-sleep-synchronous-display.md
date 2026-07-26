@@ -28,8 +28,8 @@ This is sound because the UI never animates: the e-paper holds its image with ze
 
 ## Consequences
 
-- **GPIO17 (the VBAT power-hold latch) must survive light sleep.** Digital output state is auto-retained in light sleep -- unlike deep sleep, no `gpio_hold` / `rtc_gpio_hold` is needed (those are the deep-sleep RTC-domain mechanism the manufacturer's `12_RTC_Sleep_Test` uses). But automatic tickless sleep offers no sleep-call to wrap with a belt-and-suspenders hold, and if GPIO17 drops even briefly the board cuts its own battery rail and looks bricked (USB-only recovery). Acceptance is gated on a hardware test: unplug USB, let Idle enter light sleep, confirm the device stays alive and wakes on both buttons.
-- **Sleep must be measured, not assumed.** `app_events_wait()` blocking looks identical whether the chip light-sleeps or the CPU spins. Verify with `esp_pm_dump_locks()` (no lock held in Idle) and an inline battery-current reading (Idle should drop toward the ~1-2 mA of ADR 0001).
+- **GPIO17 (the VBAT power-hold latch) must survive light sleep.** Digital output state is auto-retained in light sleep -- unlike deep sleep, no `gpio_hold` / `rtc_gpio_hold` is needed (those are the deep-sleep RTC-domain mechanism the manufacturer's `12_RTC_Sleep_Test` uses). But automatic tickless sleep offers no sleep-call to wrap with a belt-and-suspenders hold, and if GPIO17 drops even briefly the board cuts its own battery rail and looks bricked (power-key-only recovery). Verified on battery: Idle light-sleeps and wakes on both buttons with the pad untouched. The deep-sleep half of this was **not** fine and is fixed in ADR 0011.
+- **Sleep must be measured, not assumed.** `app_events_wait()` blocking looks identical whether the chip light-sleeps or the CPU spins. Verify with `esp_pm_dump_locks()` (no lock held in Idle) and an inline battery-current reading. Expect Idle near **~2.9mA**, not the ~1-2mA this originally predicted: ADR 0011 found the latch's ~2.6mA base drive dominates, so light sleep can only ever remove the SoC's ~240µA. **Still unmeasured.**
 
 ## Considered Options
 

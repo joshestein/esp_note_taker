@@ -1,8 +1,10 @@
 # Two-Tier Sleep: Deep-Sleep Park Under Light-Sleep Idle
 
+> **Superseded in part by ADR 0011.** The drain figures below are wrong: the VBAT power latch costs ~2.6mA to hold in every live state, so Park is ~2.6mA rather than ~10µA and saves only the SoC's ~240µA over Idle. A third tier (**Off**, latch open, ~10-15µA) now provides the storage state this ADR was written to provide, and whether Park still earns its place is an open question there. Everything below about *wake semantics* stands.
+
 ADR 0001 chose **light sleep** for Idle so the Record Button starts a Capture on the same press that wakes the device (~1ms resume, RAM retained). That decision stands for the everyday Idle&harr;record path. But light-sleep Idle still draws ~1-5mA, which drains the battery over days of non-use -- there was no way to deliberately *park* the device for storage.
 
-This ADR adds a **second sleep tier** on top of ADR 0001 without changing it: a **Deep Sleep** "parked" state, entered only by an explicit ~2s long press of the Menu Button from Idle. CPU and RAM power down (~10µA). Because RAM is lost, waking is a full cold boot -- remount SD, rescan the note counter, re-init the codec (~0.4-1s) -- versus the ~1ms light-sleep resume.
+This ADR adds a **second sleep tier** on top of ADR 0001 without changing it: a **Deep Sleep** "parked" state, entered only by an explicit ~2s long press of the Menu Button from Idle. CPU and RAM power down (~10µA, but see the note above). Because RAM is lost, waking is a full cold boot -- remount SD, rescan the note counter, re-init the codec (~0.4-1s) -- versus the ~1ms light-sleep resume.
 
 Both buttons wake from Park, with different targets:
 - **Menu Button** wakes to Idle.
@@ -22,7 +24,7 @@ The cost is that parking is no longer one gesture: it is enter Menu, step to Sle
 
 ## Considered Options
 
-- **No off state (light-sleep Idle only)**: least code, no clip ever. Ruled out because a wearable left unused for days needs a true low-drain state; ~1-5mA is not "stored away."
+- **No off state (light-sleep Idle only)**: least code, no clip ever. Ruled out because a wearable left unused for days needs a true low-drain state; ~1-5mA is not "stored away." (Correct, but Park does not deliver that state either -- see ADR 0011.)
 - **Deep-sleep park, Record-wake buffers the intent through cold boot to honor instant-capture**: preserves the no-clip guarantee everywhere. Ruled out because it means promising a recording before SD mount / counter rescan have succeeded; if init fails, the promise is broken with audio already "started." Cleaner to scope the guarantee to Idle.
 - **Deep-sleep park, both buttons wake only to Idle (no wake-to-record)**: no clip, but a user who grabs the parked device to capture a thought must press twice and wait. Ruled out as a worse capture UX for the device's core purpose; the clip is the lesser cost.
 - **Two long-press thresholds, 2s park + 1s Menu-exit** (the original decision): rejected on the reasoning in the amendment above -- the thresholds are not cleanly separable on a held button, and the collision lands on the Menu's most common gesture.
