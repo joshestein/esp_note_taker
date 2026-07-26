@@ -65,10 +65,10 @@ A shared bearer token, hardcoded on both sides, sent as `Authorization: Bearer <
 **Designed, not built.** The Menu card showing free space and number of Captures. Read-only: no Card action. Erasing Captures on the device is a **non-goal** -- freeing space is done on the Companion.
 
 ## Sleep (menu card)
-The Menu card whose Card action enters Deep Sleep. The only way to park the device. See ADR 0007.
+The Menu card whose Card action enters Deep Sleep. The only way to park the device. See ADR 0007, and ADR 0011 for why Park may not earn its place.
 
 ## Power off (menu card)
-The Menu card whose Card action enters Off. Distinct from Sleep: Sleep parks the CPU with the power latch held, this opens the latch and kills the rail. A no-op on USB, which reports rather than pretending. See ADR 0011.
+The Menu card whose Card action enters Off. Where Sleep holds the VBAT latch, this opens it. A no-op on USB, which it reports rather than faking. See ADR 0011.
 
 ## Battery ring
 A segmented ring on the Idle screen: five battery bands (Critical/Low/Medium/High/Full), one filled segment each, all-outline before the first read. Voltage-inferred, not a fuel gauge: sags under load, reads high while charging. **Not live** -- reflects the last Idle repaint (boot, capture end, menu exit), since Idle is Light Sleep. Idle screen only. Display-only in v1: Critical does not stop a Capture (see Auto-stop).
@@ -92,10 +92,16 @@ The outcome of a Sync, painted over the Idle screen when the Sync ends. Does **n
 A Sync failure that ends the whole session: Wi-Fi won't connect (no saved network is in range, or the one present won't associate), mDNS won't resolve, or the Companion returns 401. Retrying files against a Companion you cannot reach or are not authorized for is pointless, so the session aborts (radio off, Error Indication, Sync result). Distinct from a **per-file failure**, which is skipped -- see Sync handshake.
 
 ## Light Sleep
-The sleep mode used during Idle: CPU paused, RAM retained, GPIO interrupts wake in ~1ms. See ADR 0001. Distinct from Deep Sleep.
+The sleep mode used during Idle: CPU paused, RAM retained, GPIO interrupts wake in ~1ms. Entered automatically by `esp_pm` tickless idle (ADR 0010). Worth ~240µA, so Idle still sits at ~2.9mA -- see VBAT latch. See ADR 0001, ADR 0011. Distinct from Deep Sleep.
 
 ## Deep Sleep
-The parked, lowest-drain state. Entered from the Sleep card (menu card). CPU and RAM power down (RAM is lost), so waking is a full cold boot. Both buttons wake it: the Menu Button to Idle, the Record Button straight into a Capture (accepting a clipped opening). See ADR 0007.
+The parked state, ~2.6mA. Entered from the Sleep card (menu card). CPU and RAM power down (RAM is lost), so waking is a full cold boot. Both buttons wake it: the Menu Button to Idle, the Record Button straight into a Capture (accepting a clipped opening). Holding the VBAT latch is what allows that, and what stops this being the low-drain state ADR 0007 wanted -- see Off. See ADR 0007, ADR 0011.
+
+## Off
+The lowest-drain state, ~10-15µA. Entered from the Power off card, which opens the VBAT latch: the rail collapses and the board stops mid-instruction, safely, because Off is reachable only from the Menu where no Capture is open. **Only the Menu Button revives it** -- that pin is the hardware power key, wired to the power FET; the Record Button has no power path, so wake-to-record is a Deep Sleep property and can never be an Off one. Unreachable on USB, which feeds the rail through a diode. See ADR 0011.
+
+## VBAT latch
+What keeps the board alive off battery: GPIO17 (`BAT_Control`) holds the VBAT power FET on through a transistor. Drop it and the device powers off. Costs **~2.6mA** in every live state, which dominates every drain figure here (ADR 0011). Light sleep retains it for free; Deep Sleep needs an explicit `gpio_hold_en`, or the park becomes an accidental Off.
 
 ## WAV File
 The storage format for each Capture: PCM, 16kHz, mono, 16-bit. Named at Capture start by one of two regimes, selected by whether the RTC holds valid time (see RTC): a trusted clock gives `note_YYYYMMDD_HHMMSS.wav`; an untrusted clock (before the clock has ever been set) falls back to a scanned monotonic sequence `note_NNNN.wav`. The counter regime is reachable only before the first Sync, when nothing has yet reached the Companion. The header's length fields are patched on close, so a power loss mid-Capture leaves that one file unplayable.
@@ -127,9 +133,9 @@ The PCF85063 real-time clock (I2C 0x51), battery-backed so it keeps time across 
 
 Reasoning trimmed from the glossary that isn't captured in any ADR. Each is a small ADR waiting to be written, or a note to fold into an existing one. Not glossary content -- parked here so it isn't lost.
 
-- **All Menu cards visible at once, with a filled Selection:** a whole-screen partial refresh is ~0.3s whether one card or three change, so showing all three costs nothing over one-at-a-time, and the wearer can see where the Selection is instead of stepping blind. The old "only repaint one card region" reasoning still holds for the unbounded Recordings list, which is why visibility is per-level. (Candidate: fold into ADR 0005.)
-- **No confirm step on any Card action:** possible only because no destructive action lives on the device (see Storage). Keeps the Menu flat.
-- **Selection resets to Sync on Menu entry:** a sticky Selection could open the Menu pre-armed on Sleep, the one card whose mis-press costs a cold boot.
+- **All Menu cards visible at once, with a filled Selection:** a whole-screen partial refresh is ~0.3s whether one card or all of them change, so showing them all costs nothing over one-at-a-time, and the wearer can see where the Selection is instead of stepping blind. The old "only repaint one card region" reasoning still holds for the unbounded Recordings list, which is why visibility is per-level. (Candidate: fold into ADR 0005.)
+- **No confirm step on any Card action:** possible only because no card destroys data (see Storage). Power off is the worst mis-press, but it costs time rather than Captures, and it is already three deliberate presses deep.
+- **Selection resets to Sync on Menu entry:** a sticky Selection could open the Menu pre-armed on Sleep or Power off, the two cards whose mis-press costs a cold boot. Sync is the only one harmless to be pre-armed on.
 - **Full refresh on Menu exit, partials within it:** the ~2s flash lands when the wearer is walking away, and guarantees Idle -- the screen shown 99% of the time -- is always cleanly written.
 - **WAV mono:** mono because the ES8311 codec has a single mic; the 2-channel manufacturer example was loopback playback, not memo storage.
 - **Recording Indicator over haptic/audio cues:** LED chosen for low power and simplicity.
