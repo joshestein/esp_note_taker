@@ -23,6 +23,8 @@ static const char *TAG = "main";
 // Awake window at cold boot before light sleep engages
 #define PM_BOOT_DELAY_MS 3000
 
+#define POWER_OFF_SETTLE_MS 500
+
 typedef enum {
   IDLE = 0,
   MAIN_MENU,
@@ -195,6 +197,23 @@ static void enter_deep_sleep(void) {
   esp_deep_sleep_start();
 }
 
+// Cut the board's own power by opening the VBAT latch. Only the Menu Button can
+// revive the device afterwards, because that pin *is* the hardware power key.
+// Does not return on battery. On USB it does: VBUS holds VSYS up through D4
+// whatever GPIO17 does, so the latch is restored and the caller must cope.
+static void power_off(void) {
+  ESP_LOGI(TAG, "Powering off: opening VBAT latch");
+  display_show_message("Off", true);
+
+  // Driving low beats the pull-up init_power leaves on the pad, so T2 stops
+  // conducting and Q4's gate rises to VBAT.
+  gpio_set_level(VBAT_PWR_PIN, 0);
+  vTaskDelay(pdMS_TO_TICKS(POWER_OFF_SETTLE_MS));
+
+  gpio_set_level(VBAT_PWR_PIN, 1);
+  ESP_LOGW(TAG, "Still powered: USB is feeding VSYS, latch restored");
+}
+
 void app_main(void) {
   app_state_t state = IDLE;
 
@@ -328,6 +347,12 @@ void app_main(void) {
         case MENU_INTENT_SLEEP:
           ESP_LOGI(TAG, "Entering deep sleep");
           enter_deep_sleep();
+          break;
+        case MENU_INTENT_POWER_OFF:
+          menu_exit();
+          power_off(); // returns only on USB, where the rail is not ours to cut
+          display_show_message("Unplug USB\nto power off", true);
+          state = IDLE;
           break;
         case MENU_INTENT_NONE:
           ESP_LOGW(TAG, "No action for selected menu item");
