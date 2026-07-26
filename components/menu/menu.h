@@ -7,6 +7,7 @@ typedef enum {
   MENU_INTENT_NONE = 0,
   MENU_INTENT_SYNC,
   MENU_INTENT_SLEEP,
+  MENU_INTENT_POWER_OFF,
 } menu_intent_t;
 
 esp_err_t menu_init(void);

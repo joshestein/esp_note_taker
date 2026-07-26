@@ -13,6 +13,7 @@ static const char *TAG = "menu";
 static const char *const CARD_LABELS[] = {
     "Sync",
     "Sleep",
+    "Power off",
 };
 #define CARD_COUNT ((int)(sizeof(CARD_LABELS) / sizeof(CARD_LABELS[0])))
 
@@ -60,6 +61,8 @@ menu_intent_t menu_act(void) {
     return MENU_INTENT_SYNC;
   case 1:
     return MENU_INTENT_SLEEP;
+  case 2:
+    return MENU_INTENT_POWER_OFF;
   default:
     ESP_LOGE(TAG, "No action for card %d", selection);
     return MENU_INTENT_NONE;
