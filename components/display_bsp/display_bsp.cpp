@@ -178,7 +178,7 @@ static lv_obj_t *build_menu_screen(const char *const *labels, int count,
   set_white_background(scr);
   lv_obj_set_style_border_width(scr, 0, LV_PART_MAIN);
   lv_obj_set_style_pad_all(scr, 12, LV_PART_MAIN);
-  lv_obj_set_style_pad_row(scr, 10, LV_PART_MAIN);
+  lv_obj_set_style_pad_row(scr, 6, LV_PART_MAIN);
   lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
   lv_obj_set_flex_flow(scr, LV_FLEX_FLOW_COLUMN);
   lv_obj_set_flex_align(scr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
