@@ -9,11 +9,14 @@
 #include "esp_log.h"
 #include "esp_pm.h"
 #include "esp_sleep.h"
+#include "esp_system.h"
+#include "esp_timer.h"
 #include "freertos/idf_additions.h"
 #include "menu.h"
 #include "sdcard_bsp.h"
 #include "sync.h"
 #include "wav_writer.h"
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -22,6 +25,9 @@ static const char *TAG = "main";
 
 // Awake window at cold boot before light sleep engages
 #define PM_BOOT_DELAY_MS 3000
+
+// Generous, because a Menu-Button wake is a deliberate hold
+#define BUTTON_RELEASE_TIMEOUT_MS 3000
 
 #define POWER_OFF_SETTLE_MS 500
 
@@ -35,6 +41,24 @@ typedef enum {
 static volatile bool is_recording = false;
 static volatile bool capture_ok = false;
 static char path[32];
+
+// How this boot began. A park resumes as ESP_RST_DEEPSLEEP; a wake from Off, a
+// USB plug-in and a flash all come back as ESP_RST_POWERON. Anything else is a
+// fault worth seeing.
+static void log_boot_cause(uint64_t ext1) {
+  const esp_reset_reason_t reset = esp_reset_reason();
+  const uint32_t wake = esp_sleep_get_wakeup_causes();
+
+  if (reset == ESP_RST_DEEPSLEEP) {
+    ESP_LOGI(TAG, "Woke from park: wake=0x%" PRIx32 " record=%d menu=%d", wake,
+             (ext1 & (1ULL << RECORD_BUTTON)) != 0,
+             (ext1 & (1ULL << MENU_BUTTON)) != 0);
+  } else if (reset == ESP_RST_POWERON) {
+    ESP_LOGI(TAG, "Cold boot: rail came up");
+  } else {
+    ESP_LOGW(TAG, "Unexpected boot: reset=%d wake=0x%" PRIx32, (int)reset, wake);
+  }
+}
 
 static esp_err_t init_led(void) {
   gpio_config_t io_conf = {
@@ -53,11 +77,54 @@ static esp_err_t init_power(void) {
   gpio_config_t io_conf = {
       .pin_bit_mask = (1ULL << VBAT_PWR_PIN),
       .mode = GPIO_MODE_OUTPUT,
-      .pull_up_en = GPIO_PULLUP_DISABLE,
+      // Keeps T2's base driven through any window where the output driver is
+      // off; ~57µA is still enough to hold Q4's gate down. As Waveshare do.
+      .pull_up_en = GPIO_PULLUP_ENABLE,
       .pull_down_en = GPIO_PULLDOWN_DISABLE,
       .intr_type = GPIO_INTR_DISABLE,
   };
-  return gpio_config(&io_conf);
+  esp_err_t err = gpio_config(&io_conf);
+  if (err != ESP_OK) {
+    return err;
+  }
+
+  // Release the hold that carried the latch through Deep Sleep, only now that
+  // the output is already driving high: earlier, the pad floats and cuts our
+  // own power. No-op on a cold boot.
+  return gpio_hold_dis(VBAT_PWR_PIN);
+}
+
+// Both buttons are active low, so a press still held at a sleep boundary is
+// indistinguishable from a fresh one on the other side of it. Callers use this to
+// put the boundary between the press and its release. Requires the pins to be
+// readable already.
+static void wait_buttons_released(void) {
+  const int64_t deadline =
+      esp_timer_get_time() + (int64_t)BUTTON_RELEASE_TIMEOUT_MS * 1000;
+  while (esp_timer_get_time() < deadline) {
+    if (gpio_get_level(RECORD_BUTTON) && gpio_get_level(MENU_BUTTON)) {
+      return;
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  ESP_LOGW(TAG, "Button still held after %d ms", BUTTON_RELEASE_TIMEOUT_MS);
+}
+
+// A wake press is still down when the button driver starts, which reads its
+// release as a fresh gesture: a Menu wake lands in the Menu instead of Idle, and
+// a Record wake latches a press that stops the Capture it just started. Wait it
+// out before button_init, configuring the pins ourselves since nothing owns them
+// yet.
+static void drain_wake_press(void) {
+  const gpio_config_t io_conf = {
+      .pin_bit_mask = (1ULL << RECORD_BUTTON) | (1ULL << MENU_BUTTON),
+      .mode = GPIO_MODE_INPUT,
+      .pull_up_en = GPIO_PULLUP_DISABLE, // both pins pull up externally
+      .pull_down_en = GPIO_PULLDOWN_DISABLE,
+      .intr_type = GPIO_INTR_DISABLE,
+  };
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  wait_buttons_released();
 }
 
 static void record_task(void *arg) {
@@ -187,13 +254,39 @@ static void sync_result_text(sync_result_t result, char *out, size_t len) {
 // return.
 static void enter_deep_sleep(void) {
   ESP_LOGI(TAG, "Parking: entering deep sleep");
+
+  // Off first: PM re-arms a timer wake-up before every light sleep, so leaving
+  // it running would undo the clear below while the display refresh yields.
+  const esp_pm_config_t pm_awake = {
+      .max_freq_mhz = 160, .min_freq_mhz = 160, .light_sleep_enable = false};
+  ESP_ERROR_CHECK(esp_pm_configure(&pm_awake));
+
   display_show_deep_sleep();
+
+  // Triggers are global and the enable calls only OR bits in, so PM's leftover
+  // millisecond timer would end the park instantly. Clear it, explicitly, first.
+  ESP_ERROR_CHECK(esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL));
+
   // Wake on either button (active low). _wakeup_io configures the RTC pulls
   // itself (idling the pins high, held through RTC_PERIPH power-down), so no
   // manual rtc_gpio setup is needed.
   const uint64_t wake_mask = (1ULL << RECORD_BUTTON) | (1ULL << MENU_BUTTON);
   ESP_ERROR_CHECK(
       esp_sleep_enable_ext1_wakeup_io(wake_mask, ESP_EXT1_WAKEUP_ANY_LOW));
+
+  // ANY_LOW fires on a pin that is *already* low, so the press that chose this
+  // card would park and wake us in one breath. The card acts on PRESS_DOWN, so
+  // that press is still held unless we wait it out. Safe to yield here: PM is
+  // off above, so the idle task cannot re-arm what we just cleared.
+  wait_buttons_released();
+
+  // Freeze the VBAT latch, or the pad resets on the way in and the battery rail
+  // collapses -- powering off rather than parking, recoverable only by the Menu
+  // Button, which *is* the hardware power key. GPIO17 is RTC-capable so this
+  // routes to rtc_gpio_hold_en; gpio_deep_sleep_hold_en would drag unrelated
+  // digital pads (panel gate, LED, codec PA) along with it.
+  ESP_ERROR_CHECK(gpio_hold_en(VBAT_PWR_PIN));
+
   esp_deep_sleep_start();
 }
 
@@ -219,12 +312,18 @@ void app_main(void) {
 
   ESP_ERROR_CHECK(init_power()); // holds the VBAT latch so battery survives USB unplug
 
+  // Read once: this is the only record of why we woke, and it is what both the
+  // boot log and the wake-to-record decision are built on. Reads 0 for any
+  // non-EXT1 wake, so no separate wakeup-cause check is needed.
+  const uint64_t ext1_status = esp_sleep_get_ext1_wakeup_status();
+  log_boot_cause(ext1_status);
+
   // If we woke from Deep Sleep via the Record Button, honor the "instant
   // Capture" promise by starting to record as soon as the SD card and codec are
-  // up. A Menu-Button wake (or a cold power-on) wakes to Idle. The status call
-  // returns 0 for any non-EXT1 wake, so no separate wakeup-cause check needed.
-  bool wake_to_record =
-      (esp_sleep_get_ext1_wakeup_status() & (1ULL << RECORD_BUTTON)) != 0;
+  // up. A Menu-Button wake (or a cold power-on) wakes to Idle.
+  const bool wake_to_record = (ext1_status & (1ULL << RECORD_BUTTON)) != 0;
+
+  drain_wake_press(); // before button_init, so the driver never sees the tail
 
   ESP_ERROR_CHECK(app_events_init()); // before any producer can raise a bit
   ESP_ERROR_CHECK(button_init());
