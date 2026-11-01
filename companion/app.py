@@ -61,8 +61,12 @@ def transcript(name):
 def transcribe_worker(loaded):
     # MLX streams are per-thread: the model must be loaded on the thread that
     # runs inference, or transcribe() fails with "There is no Stream(...)".
-    # Jobs queued before the load finishes just wait in JOBS.
-    model = from_pretrained(MODEL_ID)
+    try:
+        model = from_pretrained(MODEL_ID)
+    except Exception as e:
+        loaded.put(e)
+        return
+    loaded.put(None)
     while True:
         capture = JOBS.get()
         try:
