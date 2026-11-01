@@ -4,6 +4,7 @@ from threading import Thread
 import hmac
 import os
 import shutil
+import traceback
 
 from dotenv import load_dotenv
 from flask import Flask, request, send_from_directory
@@ -17,6 +18,8 @@ CAPTURES = BASE / "captures"
 CAPTURES.mkdir(exist_ok=True)
 TRANSCRIPTS = BASE / "transcripts"
 TRANSCRIPTS.mkdir(exist_ok=True)
+BROKEN = CAPTURES / "broken"
+BROKEN.mkdir(exist_ok=True)
 
 app = Flask(__name__)
 # Max upload size is 32 MB
@@ -58,6 +61,13 @@ def transcript(name):
     return send_from_directory(TRANSCRIPTS, name)
 
 
+def quarantine(capture):
+    # Reason first, then the WAV: a crash in between leaves the WAV in
+    # captures/ to retry, and a later success clears the stale .err.
+    (BROKEN / f"{capture}.err").write_text(traceback.format_exc())
+    (CAPTURES / f"{capture}.wav").replace(BROKEN / f"{capture}.wav")
+
+
 def transcribe_worker(loaded):
     # MLX streams are per-thread: the model must be loaded on the thread that
     # runs inference, or transcribe() fails with "There is no Stream(...)".
@@ -81,8 +91,18 @@ def transcribe_worker(loaded):
             text = result.text.strip()
             tmp.write_text(text + "\n")
             tmp.replace(final)  # atomic: GET /transcripts lists it only when complete
+            # A re-upload that transcribes clears its old quarantined copy.
+            (BROKEN / f"{capture}.wav").unlink(missing_ok=True)
+            (BROKEN / f"{capture}.err").unlink(missing_ok=True)
         except Exception as e:
-            print(f"Error transcribing {capture}: {e}")
+            # Last line only: ffmpeg errors lead with a long build banner.
+            # The full text goes to the .err file.
+            reason = (str(e).strip().splitlines() or [type(e).__name__])[-1]
+            print(f"Broken Capture {capture}, quarantined: {reason}", flush=True)
+            try:
+                quarantine(capture)
+            except Exception as q:
+                print(f"Could not quarantine {capture}: {q}", flush=True)
         finally:
             JOBS.task_done()
 
