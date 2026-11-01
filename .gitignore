@@ -4,3 +4,7 @@ sdkconfig
 sdkconfig.old
 
 wifi_secrets.h
+
+.cache
+.clangd
+.zed
