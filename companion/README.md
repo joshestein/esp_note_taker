@@ -40,6 +40,8 @@ flask --app app run --host 0.0.0.0 --port 8080
 
 Transcription runs on a background worker thread (model loaded on that thread: MLX streams are per-thread), so uploads return immediately and the transcript appears a few seconds later — the device fetches it on a subsequent sync.
 
+A Capture that fails transcription moves to `captures/broken/`, with the error in `<name>.err`. To retry: move the WAV back to `captures/`, delete the `.err`, restart.
+
 ## Status
 
 v1 is plaintext HTTP (Tier 1): the bearer token gates who may talk to the Companion, but the token and audio are sniffable by a passive attacker on the LAN — an accepted risk for a manual, seconds-long sync. TLS is a deferred, additive change. Native-app packaging for non-technical friends (not Docker — it breaks LAN mDNS) is likewise deferred.
