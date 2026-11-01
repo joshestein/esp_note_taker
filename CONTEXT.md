@@ -3,6 +3,12 @@
 ## Capture
 A single audio recording session. Begins on a Record Button press and ends on the next. Stored as one WAV file on the SD card. Discarded if shorter than 2 seconds.
 
+## Broken Capture
+A Capture with no usable audio. Caught on the device at Finalizing, or on the Companion at transcription.
+
+## Silent Capture
+A Capture with an empty Transcript. Not broken. Kept: "no speech" is the transcriber's guess.
+
 ## Record Button
 The BOOT button (GPIO0). Wakes the device from Idle and immediately begins a Capture; a second press ends it. In the Menu it performs the Card action.
 
@@ -80,7 +86,7 @@ The device state when no Capture is in progress. The CPU is in Light Sleep; eith
 The device state during an active Capture: audio is read from the codec and written in chunks to an open WAV file. Recording is naive: every sample is kept from the moment capture starts, none discarded. (Distinct from the 2-second minimum-Capture rule under Capture, which discards a whole short Capture, not samples within one.)
 
 ## Finalizing
-The device state after a Capture ends, while the WAV header is patched and the file closed. A broken Capture (failed write, or a task that never started) is `remove()`d here, not saved. Reached only when the record task signals it has stopped (see ADR 0004). Button presses during Finalizing are dropped, not queued.
+The device state after a Capture ends, while the WAV header is patched and the file closed. A Broken Capture caught here (failed write, or a task that never started) is `remove()`d, not saved. Reached only when the record task signals it has stopped (see ADR 0004). Button presses during Finalizing are dropped, not queued.
 
 ## Syncing
 The device state during an active Sync: the radio is on and a dedicated sync task runs the Sync handshake (connect, mDNS resolve, uploads, downloads, disconnect) while the task signals its progress and completion back to the main loop. A top-level peer of Recording State. Entered from the Sync card, which it **leaves** -- the Menu closes when a Sync starts, and the device lands in Idle when it ends, showing the Sync result. Mutually exclusive with recording; button presses are dropped for its duration (no cancel in v1). See ADR 0003, ADR 0006.
