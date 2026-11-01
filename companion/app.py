@@ -58,7 +58,7 @@ def transcript(name):
     return send_from_directory(TRANSCRIPTS, name)
 
 
-def transcribe_worker():
+def transcribe_worker(loaded):
     # MLX streams are per-thread: the model must be loaded on the thread that
     # runs inference, or transcribe() fails with "There is no Stream(...)".
     # Jobs queued before the load finishes just wait in JOBS.
@@ -91,7 +91,12 @@ def enqueue_pending():
             JOBS.put(wav.stem)
 
 
-Thread(target=transcribe_worker, daemon=True).start()
+# Fail closed: block startup until the worker has the model, and re-raise its
+# load error here rather than serve 200s with no transcriber behind them.
+_loaded = Queue(maxsize=1)
+Thread(target=transcribe_worker, args=(_loaded,), daemon=True).start()
+if (_load_error := _loaded.get()) is not None:
+    raise RuntimeError(f"Model load failed: {MODEL_ID}") from _load_error
 enqueue_pending()
 
 
