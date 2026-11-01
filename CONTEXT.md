@@ -50,7 +50,7 @@ The two-phase sync, device always the HTTP client. Upload: POST each unsynced Ca
 The plain-text transcription of a Capture, produced by the Companion and sent back on a later sync (eventually-consistent). Paired to its WAV by filename stem. The device only holds Transcripts (and may show a one-line preview on the Recordings card); it provides no full on-device reader. See ADR 0003.
 
 ## Companion
-The program on the paired computer that receives Captures, transcribes them (local Whisper), stores them, and serves Transcripts back. From the firmware's side, just an HTTP endpoint honoring the Sync handshake. Lives in the `companion/` subtree (Python + Flask). See ADR 0003, ADR 0008.
+The program on the paired computer that receives Captures, transcribes them (local speech-to-text), stores them, and serves Transcripts back. From the firmware's side, just an HTTP endpoint honoring the Sync handshake. Lives in the `companion/` subtree (Python + Flask). See ADR 0003, ADR 0008.
 
 ## Companion discovery
 How the device locates its Companion on the LAN: it resolves a per-owner mDNS hostname (e.g. `josh-memo.local`, held in the gitignored `wifi_secrets.h`) at sync start. **1:1 invariant:** one Companion serves exactly one device. See ADR 0006.
