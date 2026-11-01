@@ -89,7 +89,12 @@ Implementation checklist for the voice-memo recording flow. See `CONTEXT.md` for
 - [x] Real `faster-whisper` transcription (`base.en`, cpu/int8), single background worker thread + `queue.Queue`, atomic `.txt` write. **State-driven recovery:** `enqueue_pending()` rescans `captures/` at startup for WAVs lacking a `.txt`. Verified end-to-end 2026-07-11 (round-trip, 404, idempotent re-upload, rescan recovery). Superseded the instant stub
 - [x] Correct `Date` response header (Werkzeug default) for device RTC-set
 - [x] Bearer auth: `before_request` gate, 401 empty-body on missing/wrong `Authorization`, constant-time compare. Token from `COMPANION_TOKEN` env (dev default). Verified 2026-07-11. Later: move token to gitignored `.env`
-- [ ] Deferred: native-app packaging (Briefcase) for mixed-OS friends -- not Docker (breaks LAN mDNS, ADR 0008)
+- [ ] Deferred: native-app packaging (Briefcase) for mixed-OS friends -- not Docker (breaks LAN mDNS, ADR 0008). `parakeet-mlx` is Apple Silicon only; try `onnx-asr` first
+- [ ] Broken Capture quarantine:
+  - Fail at startup if `ffmpeg` is missing or the model load fails
+  - `transcribe()` raises -> move WAV to `captures/broken/`, write `<stem>.err`
+  - Transcript written -> delete stale `broken/<stem>.*`
+- [ ] With the Recordings card: tell the device which Captures are Broken
 
 ## Sync (device side; companion lives in `companion/`)
 
