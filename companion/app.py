@@ -5,8 +5,8 @@ import hmac
 import os
 
 from dotenv import load_dotenv
-from faster_whisper import WhisperModel
 from flask import Flask, request, send_from_directory
+from parakeet_mlx import from_pretrained
 from werkzeug.utils import secure_filename
 
 load_dotenv()
@@ -30,7 +30,10 @@ if not _token:
     )
 COMPANION_TOKEN: str = _token
 
-MODEL = WhisperModel("base.en", device="cpu", compute_type="int8")
+MODEL_ID = "mlx-community/parakeet-tdt-0.6b-v3"
+# Long captures are split into overlapping chunks and stitched back together.
+CHUNK_SECONDS = 120.0
+OVERLAP_SECONDS = 15.0
 JOBS = Queue()
 
 
@@ -52,15 +55,22 @@ def transcript(name):
 
 
 def transcribe_worker():
+    # MLX streams are per-thread: the model must be loaded on the thread that
+    # runs inference, or transcribe() fails with "There is no Stream(...)".
+    # Jobs queued before the load finishes just wait in JOBS.
+    model = from_pretrained(MODEL_ID)
     while True:
         capture = JOBS.get()
         try:
             audio_path = CAPTURES / f"{capture}.wav"
             final = TRANSCRIPTS / f"{capture}.txt"
             tmp = final.with_name(final.name + ".part")
-            segments, _info = MODEL.transcribe(str(audio_path))
-            # Consuming the generator is what runs inference (it's lazy).
-            text = "".join(segment.text for segment in segments).strip()
+            result = model.transcribe(
+                audio_path,
+                chunk_duration=CHUNK_SECONDS,
+                overlap_duration=OVERLAP_SECONDS,
+            )
+            text = result.text.strip()
             tmp.write_text(text + "\n")
             tmp.replace(final)  # atomic: GET /transcripts lists it only when complete
         except Exception as e:
