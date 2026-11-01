@@ -22,8 +22,6 @@ cp .env.example .env
 
 Set all unset tokens in `.env`
 
-`--python-preference only-managed` makes uv use its own Python build, with its own OpenSSL. A pyenv or Homebrew Python that links a missing Homebrew `openssl@3` cannot import `ssl`, so the model download fails.
-
 ## Run
 
 ```sh
