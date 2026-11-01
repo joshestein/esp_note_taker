@@ -3,6 +3,7 @@ from queue import Queue
 from threading import Thread
 import hmac
 import os
+import shutil
 
 from dotenv import load_dotenv
 from flask import Flask, request, send_from_directory
@@ -29,6 +30,9 @@ if not _token:
         "COMPANION_TOKEN env var must be set (shared bearer secret, no default)"
     )
 COMPANION_TOKEN: str = _token
+
+if shutil.which("ffmpeg") is None:
+    raise RuntimeError("ffmpeg must be on PATH (parakeet-mlx decodes audio with it)")
 
 MODEL_ID = "mlx-community/parakeet-tdt-0.6b-v3"
 # Long captures are split into overlapping chunks and stitched back together.
