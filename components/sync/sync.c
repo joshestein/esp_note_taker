@@ -114,10 +114,11 @@ static esp_err_t netif_init_once(void) {
 }
 
 // Scans nearby APs and returns the index into wifi_networks of the strongest
-// saved network that is actually in range. Returns -1 if none of ours are
-// present (a distinct, non-transient failure: wrong place, or add this network),
-// and -2 on a scan/radio error. Requires the radio already started.
-static int pick_known_network(void) {
+// saved network that is actually in range, and that AP's BSSID and channel.
+// Returns -1 if none of ours are present (a distinct, non-transient failure:
+// wrong place, or add this network), and -2 on a scan/radio error. Requires the
+// radio already started.
+static int pick_known_network(uint8_t bssid[6], uint8_t *channel) {
   wifi_scan_config_t scan_cfg = {}; // active scan, all channels, hidden skipped
   if (esp_wifi_scan_start(&scan_cfg, true) != ESP_OK) {
     ESP_LOGE(TAG, "Wi-Fi scan failed");
