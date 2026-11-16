@@ -163,7 +163,6 @@ static int pick_known_network(uint8_t bssid[6], uint8_t *channel) {
   free(records);
   if (best >= 0) {
     *channel = best_channel;
-    // Link quality is the first suspect when uploads are slow.
     ESP_LOGI(TAG, "Best: %s, RSSI %d dBm, channel %u, bssid " MACSTR,
              wifi_networks[best].ssid, best_rssi, best_channel, MAC2STR(bssid));
   }
