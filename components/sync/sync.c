@@ -2,10 +2,13 @@
 #include "app_events.h"
 #include "config.h"
 #include "esp_check.h"
+#include "esp_eap_client.h"
 #include "esp_event.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "mdns.h"
 #include "nvs_flash.h"
@@ -44,9 +47,13 @@ static sync_result_t result;
 
 // Saved networks (wifi_secrets.h). At sync start we scan and join the
 // strongest of these actually in range.
+// `username` set: 802.1X (PEAP/TTLS), `password` is the account password and
+// `ca_cert` (PEM, the RADIUS server's CA) is required. NULL: WPA-PSK/open.
 typedef struct {
   const char *ssid;
   const char *password;
+  const char *username;
+  const char *ca_cert;
 } wifi_network_t;
 static const wifi_network_t wifi_networks[] = WIFI_NETWORKS;
 #define WIFI_NETWORK_COUNT (sizeof(wifi_networks) / sizeof(wifi_networks[0]))
@@ -169,6 +176,43 @@ static int pick_known_network(uint8_t bssid[6], uint8_t *channel) {
   return best;
 }
 
+// EAP credentials are global supplicant state, not part of wifi_config_t, so
+// clear them on every join or a later PSK join still tries EAP.
+// Cert expiry is not checked (IDF default): the clock is unset at sync time.
+static esp_err_t configure_enterprise(const wifi_network_t *net) {
+  esp_eap_client_clear_identity();
+  esp_eap_client_clear_username();
+  esp_eap_client_clear_password();
+  esp_eap_client_clear_ca_cert();
+
+  if (net->username == NULL) {
+    return esp_wifi_sta_enterprise_disable();
+  }
+  // Without the CA, any AP with this SSID can harvest the credentials.
+  ESP_RETURN_ON_FALSE(net->ca_cert != NULL, ESP_ERR_INVALID_ARG, TAG,
+                      "%s: 802.1X network has no CA cert", net->ssid);
+
+  const unsigned char *user = (const unsigned char *)net->username;
+  int user_len = (int)strlen(net->username);
+  ESP_RETURN_ON_ERROR(esp_eap_client_set_identity(user, user_len), TAG,
+                      "eap identity");
+  ESP_RETURN_ON_ERROR(esp_eap_client_set_username(user, user_len), TAG,
+                      "eap username");
+  ESP_RETURN_ON_ERROR(
+      esp_eap_client_set_password((const unsigned char *)net->password,
+                                  (int)strlen(net->password)),
+      TAG, "eap password");
+
+  // PEM length must include the NUL. The pointer is kept, not copied: fine
+  // for a string literal.
+  ESP_RETURN_ON_ERROR(
+      esp_eap_client_set_ca_cert((const unsigned char *)net->ca_cert,
+                                 (int)strlen(net->ca_cert) + 1),
+      TAG, "eap ca cert");
+
+  return esp_wifi_sta_enterprise_enable();
+}
+
 // Scans, joins the strongest saved network in range, or gives up. Sets
 // result.error on every failure path. Bounded: never hangs the sync task.
 // Teardown of the radio on failure is left to wifi_disconnect() at sync end.
@@ -194,7 +238,13 @@ static esp_err_t wifi_connect(void) {
     return err;
   }
 
-  int net = pick_known_network();
+  // Modem sleep delays TCP ACKs and throttles the upload. The radio is up only
+  // for the sync: higher draw for a shorter time.
+  esp_wifi_set_ps(WIFI_PS_NONE);
+
+  uint8_t bssid[6] = {};
+  uint8_t channel = 0;
+  int net = pick_known_network(bssid, &channel);
   if (net < 0) {
     result.error = (net == -1) ? SYNC_ERR_NO_KNOWN_WIFI : SYNC_ERR_WIFI;
     ESP_LOGE(TAG, "%s",
@@ -202,13 +252,30 @@ static esp_err_t wifi_connect(void) {
     return ESP_FAIL;
   }
 
+  const wifi_network_t *chosen = &wifi_networks[net];
+  bool enterprise = chosen->username != NULL;
+
   wifi_config_t wifi_cfg = {};
-  strlcpy((char *)wifi_cfg.sta.ssid, wifi_networks[net].ssid,
-          sizeof(wifi_cfg.sta.ssid));
-  strlcpy((char *)wifi_cfg.sta.password, wifi_networks[net].password,
-          sizeof(wifi_cfg.sta.password));
+  strlcpy((char *)wifi_cfg.sta.ssid, chosen->ssid, sizeof(wifi_cfg.sta.ssid));
+  // Pin the AP the scan chose. Unpinned, the driver joins the first AP it
+  // hears with this SSID, not the strongest (3x slower uploads measured on a
+  // multi-AP network). Retries reuse the same AP.
+  memcpy(wifi_cfg.sta.bssid, bssid, sizeof(wifi_cfg.sta.bssid));
+  wifi_cfg.sta.bssid_set = true;
+  wifi_cfg.sta.channel = channel;
+  if (!enterprise) {
+    strlcpy((char *)wifi_cfg.sta.password, chosen->password,
+            sizeof(wifi_cfg.sta.password));
+  }
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg));
-  ESP_LOGI(TAG, "Joining %s", wifi_networks[net].ssid);
+
+  err = configure_enterprise(chosen);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "802.1X setup failed: %s", esp_err_to_name(err));
+    result.error = SYNC_ERR_WIFI;
+    return err;
+  }
+  ESP_LOGI(TAG, "Joining %s%s", chosen->ssid, enterprise ? " (802.1X)" : "");
 
   esp_wifi_connect();
 
