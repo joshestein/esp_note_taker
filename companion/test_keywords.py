@@ -18,6 +18,16 @@ CASES = [
     ("To do.", None),
     ("To do", None),
     ("", None),
+    # Fillers
+    ("Uh to do I need to get bath towel mats", "I need to get bath towel mats"),
+    ("Um, to do buy milk", "buy milk"),
+    ("Uhm... So, okay, to do: call Sam", "call Sam"),
+    ("Hmm. Well, to-do uh buy um eggs", "buy eggs"),
+    ("To do, er, ask Sam about the umbrella", "ask Sam about the umbrella"),
+    ("So I like eggs", None),
+    ("Okay, today I bought milk.", None),
+    ("Uh.", None),
+    ("Um to do", None),
 ]
 
 
