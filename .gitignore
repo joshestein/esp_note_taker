@@ -8,3 +8,6 @@ wifi_secrets.h
 .cache
 .clangd
 .zed
+
+# RADIUS CA certs (embedded in wifi_secrets.h)
+*.pem
