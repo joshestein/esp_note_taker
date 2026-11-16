@@ -593,66 +593,62 @@ static void download_transcripts(esp_http_client_handle_t client,
     return;
   }
 
-  const int content_length = esp_http_client_fetch_headers(client);
+  esp_http_client_fetch_headers(client);
   const int status = esp_http_client_get_status_code(client);
-  if (status != 200 || content_length <= 0 ||
-      content_length >= UPLOAD_CHUNK_SIZE) {
-    ESP_LOGW(TAG, "Transcript list unavailable (status %d, length %d)", status,
-             content_length);
+  if (status != 200) {
+    ESP_LOGW(TAG, "Transcript list unavailable (status %d)", status);
     esp_http_client_close(client);
     return;
   }
 
-  const int read = esp_http_client_read(client, (char *)chunk, content_length);
-  esp_http_client_close(client);
-  if (read != content_length) {
-    ESP_LOGE(TAG, "Short read on transcript list");
-    return;
-  }
-  chunk[read] = '\0';
-
-  // The body is a bare array of quoted filenames -- ["note_0003.txt",...] --
-  // and the names are note_NNNN.txt: no escapes, no commas, no unicode. So "the
-  // strings are what sits between quote pairs" is a complete description of the
-  // format, and a JSON parser would be doing nothing a scan cannot.
+  // The body is ["note_0003.txt",...] and names hold no quotes or escapes, so
+  // a name is whatever sits between a quote pair. Scanned as it streams, since
+  // the list outgrows any buffer. Only missing names take a slot, so each sync
+  // catches up by up to MAX_PER_SYNC however long the list.
   int count = 0;
-  char *cursor = (char *)chunk;
-  while (count < MAX_PER_SYNC) {
-    char *start = strchr(cursor, '"');
-    if (start == NULL) {
-      break;
-    }
-    char *end = strchr(start + 1, '"');
-    if (end == NULL) {
-      break;
-    }
-    *end = '\0';
-    const char *name = start + 1;
-    cursor = end + 1;
+  char name[MAX_NAME_LEN];
+  int len = -1; // -1: outside quotes. MAX_NAME_LEN: too long to keep.
+  int read;
+  while (count < MAX_PER_SYNC &&
+         (read = esp_http_client_read(client, (char *)chunk,
+                                      UPLOAD_CHUNK_SIZE)) > 0) {
+    for (int i = 0; i < read && count < MAX_PER_SYNC; i++) {
+      const char c = (char)chunk[i];
+      if (c != '"') {
+        if (len >= 0 && len < MAX_NAME_LEN) {
+          name[len++] = c;
+        }
+        continue;
+      }
+      if (len < 0) {
+        len = 0;
+        continue;
+      }
+      const bool fits = len < MAX_NAME_LEN;
+      if (fits) {
+        name[len] = '\0';
+      }
+      len = -1;
 
-    // The name arrives over the network and becomes a path below. Refuse
-    // anything that could climb out of TRANSCRIPTS_DIR, and anything long
-    // enough to truncate into a path buffer (two long names could otherwise
-    // truncate to the same file).
-    if (strlen(name) >= MAX_NAME_LEN || strchr(name, '/') != NULL ||
-        strstr(name, "..") != NULL) {
-      ESP_LOGW(TAG, "Refusing suspicious transcript name");
-      continue;
+      // A name from the network becomes a path: refuse one that climbs out of
+      // TRANSCRIPTS_DIR or that would truncate into another name.
+      if (!fits || strchr(name, '/') != NULL || strstr(name, "..") != NULL) {
+        ESP_LOGW(TAG, "Refusing suspicious transcript name");
+        continue;
+      }
+      if (!have_transcript(name)) {
+        strlcpy(names[count++], name, MAX_NAME_LEN);
+      }
     }
-    strlcpy(names[count], name, MAX_NAME_LEN);
-    count++;
   }
+  esp_http_client_close(client);
 
+  // A failed fetch is not a sync failure: the next sync asks again.
   for (int i = 0; i < count; i++) {
-    if (have_transcript(names[i])) {
-      continue;
-    }
     if (download_transcript(client, base_url, names[i])) {
       result.downloaded++;
       ESP_LOGI(TAG, "Downloaded %s", names[i]);
     }
-    // A transcript we could not fetch is not counted as a failure: it is not
-    // ours yet. It stays on the Companion and we ask again next sync.
   }
 }
 
