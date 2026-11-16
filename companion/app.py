@@ -24,6 +24,8 @@ BROKEN.mkdir(exist_ok=True)
 app = Flask(__name__)
 # Max upload size is 32 MB
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1000 * 1000
+# Longest gap between upload chunks before the upload is treated as dead.
+UPLOAD_STALL_TIMEOUT_S = 30
 
 # Shared bearer token, hardcoded on both sides (device in wifi_secrets.h).
 # Fail closed: no default -- refuse to start rather than run with a public secret.
@@ -130,6 +132,14 @@ def upload_capture(capture):
     final_name = CAPTURES / f"{capture}.wav"
     tmp_name = CAPTURES / f"{capture}.wav.part"
     size = 0
+
+    # A device that drops mid-upload (reset, out of range) never closes the TCP
+    # connection, so without a timeout this read blocks forever, holding the
+    # thread and the .part. A stall this long is a dead upload: the device's
+    # own HTTP timeout is shorter.
+    sock = request.environ.get("werkzeug.socket")
+    if sock is not None:
+        sock.settimeout(UPLOAD_STALL_TIMEOUT_S)
 
     try:
         with tmp_name.open("wb") as file:
