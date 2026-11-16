@@ -147,16 +147,25 @@ static int pick_known_network(void) {
 
   int best = -1;
   int8_t best_rssi = INT8_MIN;
+  uint8_t best_channel = 0;
   for (uint16_t i = 0; i < n; i++) {
     for (size_t k = 0; k < WIFI_NETWORK_COUNT; k++) {
       if (strcmp((const char *)records[i].ssid, wifi_networks[k].ssid) == 0 &&
           records[i].rssi > best_rssi) {
         best_rssi = records[i].rssi;
+        best_channel = records[i].primary;
+        memcpy(bssid, records[i].bssid, 6);
         best = (int)k;
       }
     }
   }
   free(records);
+  if (best >= 0) {
+    *channel = best_channel;
+    // Link quality is the first suspect when uploads are slow.
+    ESP_LOGI(TAG, "Best: %s, RSSI %d dBm, channel %u, bssid " MACSTR,
+             wifi_networks[best].ssid, best_rssi, best_channel, MAC2STR(bssid));
+  }
   return best;
 }
 
