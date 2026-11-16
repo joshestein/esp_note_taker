@@ -11,7 +11,7 @@ from flask import Flask, request, send_from_directory
 from parakeet_mlx import from_pretrained
 from werkzeug.utils import secure_filename
 
-from gtasks_inbox import send_task
+from gtasks_inbox import is_set_up, send_task
 from keywords import parse_todo
 
 load_dotenv()
@@ -41,6 +41,9 @@ COMPANION_TOKEN: str = _token
 
 if shutil.which("ffmpeg") is None:
     raise RuntimeError("ffmpeg must be on PATH (parakeet-mlx decodes audio with it)")
+
+if not is_set_up():
+    print("gtasks-sync is not set up: the to do Keyword is off", flush=True)
 
 MODEL_ID = "mlx-community/parakeet-tdt-0.6b-v3"
 # Long captures are split into overlapping chunks and stitched back together.
@@ -83,7 +86,9 @@ def send_keyword(capture, text):
         if send_task(capture, title):
             print(f"Task from {capture}: {title}", flush=True)
         else:
-            print(f"Keyword in {capture} skipped: gtasks-sync is not set up", flush=True)
+            print(
+                f"Keyword in {capture} skipped: gtasks-sync is not set up", flush=True
+            )
     except Exception as e:
         print(f"Keyword in {capture} failed: {e}", flush=True)
 
