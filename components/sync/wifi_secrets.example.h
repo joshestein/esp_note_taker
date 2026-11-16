@@ -17,8 +17,8 @@
 // actually in range.
 // Designated initializers: the build treats missing fields as an error
 // (-Wmissing-field-initializers), and the designated form leaves them unset
-// (NULL) on purpose. Set .username only for WPA2/3-Enterprise; .ca_cert is
-// optional but needed to verify the server.
+// (NULL) on purpose. Set .username only for WPA2/3-Enterprise, and then
+// .ca_cert is required: the device refuses to join without it.
 #define WIFI_NETWORKS                                                          \
   {                                                                            \
     {.ssid = "home-ssid", .password = "home-password"},                        \
