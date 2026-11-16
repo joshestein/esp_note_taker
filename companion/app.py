@@ -11,6 +11,9 @@ from flask import Flask, request, send_from_directory
 from parakeet_mlx import from_pretrained
 from werkzeug.utils import secure_filename
 
+from gtasks_inbox import send_task
+from keywords import parse_todo
+
 load_dotenv()
 
 BASE = Path(__file__).resolve().parent
@@ -70,6 +73,21 @@ def quarantine(capture):
     (CAPTURES / f"{capture}.wav").replace(BROKEN / f"{capture}.wav")
 
 
+def send_keyword(capture, text):
+    # The Transcript is already committed, so a failure here only logs: it
+    # never makes a Broken Capture and is not retried (ADR 0012).
+    title = parse_todo(text)
+    if title is None:
+        return
+    try:
+        if send_task(capture, title):
+            print(f"Task from {capture}: {title}", flush=True)
+        else:
+            print(f"Keyword in {capture} skipped: gtasks-sync is not set up", flush=True)
+    except Exception as e:
+        print(f"Keyword in {capture} failed: {e}", flush=True)
+
+
 def transcribe_worker(loaded):
     # MLX streams are per-thread: the model must be loaded on the thread that
     # runs inference, or transcribe() fails with "There is no Stream(...)".
@@ -105,6 +123,8 @@ def transcribe_worker(loaded):
                 quarantine(capture)
             except Exception as q:
                 print(f"Could not quarantine {capture}: {q}", flush=True)
+        else:
+            send_keyword(capture, text)
         finally:
             JOBS.task_done()
 
