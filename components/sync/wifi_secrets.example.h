@@ -5,11 +5,27 @@
 #ifndef WIFI_SECRETS_H
 #define WIFI_SECRETS_H
 
+// CA that signed the enterprise network's RADIUS server cert, as PEM. Export it
+// from Keychain Access (the cert macOS showed on first join) or from
+// `openssl s_client`. Keep the trailing \n on every line.
+#define OFFICE_CA_PEM                                                          \
+  "-----BEGIN CERTIFICATE-----\n"                                              \
+  "MIIB...\n"                                                                  \
+  "-----END CERTIFICATE-----\n"
+
 // Saved networks, tried by scanning at sync start and joining the strongest one
 // actually in range.
+// Designated initializers: the build treats missing fields as an error
+// (-Wmissing-field-initializers), and the designated form leaves them unset
+// (NULL) on purpose. Set .username only for WPA2/3-Enterprise; .ca_cert is
+// optional but needed to verify the server.
 #define WIFI_NETWORKS                                                          \
   {                                                                            \
-    {"home-ssid", "home-password"}, { "office-ssid", "office-password" }       \
+    {.ssid = "home-ssid", .password = "home-password"},                        \
+    {.ssid = "office-ssid",                                                    \
+     .password = "account-password",                                           \
+     .username = "account-username",                                           \
+     .ca_cert = OFFICE_CA_PEM},                                                \
   }
 
 // Per-owner Companion mDNS hostname, resolved at the start of each sync.
