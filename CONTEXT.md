@@ -55,6 +55,9 @@ The two-phase sync, device always the HTTP client. Upload: POST each unsynced Ca
 ## Transcript
 The plain-text transcription of a Capture, produced by the Companion and sent back on a later sync (eventually-consistent). Paired to its WAV by filename stem. The device only holds Transcripts (and may show a one-line preview on the Recordings card); it provides no full on-device reader. See ADR 0003.
 
+## Keyword
+The first words of a Transcript that make the rest of it a Google Task title: `to do`, `todo`, or `to-do`, in any case. A Keyword in the middle of a Transcript is ordinary speech. The Transcript does not change.
+
 ## Companion
 The program on the paired computer that receives Captures, transcribes them (local speech-to-text), stores them, and serves Transcripts back. From the firmware's side, just an HTTP endpoint honoring the Sync handshake. Lives in the `companion/` subtree (Python + Flask). See ADR 0003, ADR 0008.
 
