@@ -411,6 +411,8 @@ static int post_capture(esp_http_client_handle_t client, const char *base_url,
   esp_http_client_set_method(client, HTTP_METHOD_POST);
   esp_http_client_set_header(client, "Content-Type", "audio/wav");
 
+  int64_t t_start = esp_timer_get_time();
+
   // Declaring the length up front means no chunked transfer-encoding, and lets
   // the Companion stream straight to disk (ADR 0006).
   esp_err_t err = esp_http_client_open(client, size);
@@ -436,6 +438,12 @@ static int post_capture(esp_http_client_handle_t client, const char *base_url,
   if (sent_all && esp_http_client_fetch_headers(client) >= 0) {
     status = esp_http_client_get_status_code(client);
   }
+
+  // ~95% of this is the network write (measured), so a slow rate means the
+  // link: weak AP or busy channel.
+  int64_t ms = (esp_timer_get_time() - t_start) / 1000;
+  ESP_LOGI(TAG, "%s: %ld KB in %lld ms (%lld KB/s)", name, size / 1024, ms,
+           ms > 0 ? (int64_t)size / ms * 1000 / 1024 : 0);
 
   fclose(file);
   esp_http_client_close(client);
