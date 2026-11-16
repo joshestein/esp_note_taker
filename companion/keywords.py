@@ -39,5 +39,8 @@ def parse_todo(text: str) -> str | None:
     match = _TODO.match(text)
     if match is None:
         return None
-    title = text[match.end():].strip()
+    title = text[match.end() :].strip()
+    # Strip trailing punctuation, but not an ellipsis
+    if title.endswith(".") and not title.endswith(".."):
+        title = title[:-1].rstrip()
     return title or None

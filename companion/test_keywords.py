@@ -3,10 +3,12 @@ import unittest
 from keywords import parse_todo
 
 CASES = [
-    ("To do, buy milk.", "buy milk."),
+    ("To do, buy milk.", "buy milk"),
     ("todo: call Sam", "call Sam"),
     ("TO-DO buy eggs", "buy eggs"),
-    ("To do list for Saturday.", "list for Saturday."),
+    ("To do list for Saturday.", "list for Saturday"),
+    ("To do buy milk, eggs...", "buy milk, eggs..."),
+    ("To do check the SEO audit for blue dot.", "check the SEO audit for blue dot"),
     ("  To do,   buy milk", "buy milk"),
     ("To do; buy milk", "buy milk"),
     ("To do! Buy milk", "Buy milk"),
