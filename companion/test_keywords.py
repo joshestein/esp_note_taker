@@ -32,7 +32,8 @@ CASES = [
     # project: a list item, so the final period goes
     ("Project, try the new parser.", ("project", "try the new parser")),
     ("Project: a CLI for Keep", ("project", "a CLI for Keep")),
-    ("Projects are hard.", None),
+    ("Projects, voice diary.", ("project", "voice diary")),
+    ("Projects are hard.", ("project", "are hard")),  # accepted false positive
     ("Projected costs are up.", None),
     ("My project is late.", None),
     # Fillers

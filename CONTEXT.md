@@ -59,7 +59,7 @@ The plain-text transcription of a Capture, produced by the Companion and sent ba
 The first words of a Transcript that send the rest of it to another app, in any case:
 - `to do` (`todo`, `to-do`): a new Google Task.
 - `note`: a new Google Keep note.
-- `project`: a new item on the projects checklist in Keep.
+- `project` (`projects`): a new item on the projects checklist in Keep.
 
 Only hesitation sounds ("um") and filler words ("so", "okay") can come before it. A Keyword after other words is ordinary speech. The Transcript does not change.
 

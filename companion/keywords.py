@@ -19,7 +19,7 @@ _LEADING = re.compile(
     re.IGNORECASE,
 )
 
-# After the Keyword: \b rejects "Today", "To-dos", "Notes" and "Projects", then
+# After the Keyword: \b rejects "Today", "To-dos", "Notes" and "Projected", then
 # the punctuation before the text is removed.
 _AFTER = r"\b[\s,.:;!?…\-–—]*"
 
@@ -43,7 +43,7 @@ class Keyword:
 KEYWORDS = [
     Keyword("to do", r"to[\s-]?do", "gtasks-sync", strip_period=True),
     Keyword("note", r"note", "keep-sync"),
-    Keyword("project", r"project", "keep-sync", {"append_to": PROJECTS_NOTE}, strip_period=True),
+    Keyword("project", r"projects?","keep-sync", {"append_to": PROJECTS_NOTE}, strip_period=True),
 ]
 
 
