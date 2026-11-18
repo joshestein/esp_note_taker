@@ -9,3 +9,5 @@ Random ideas to test / iterate on:
 7. Keyword like 'Reminder' or 'remind me' sets a reminder (might need local LLM to parse date/time combo)
 8. 'Project' writes to projects list
 9. Some sort of audio diary, when starting with note with explicit date.
+10. OTA firmware updates
+11. On-device web-server for controlling configuration
