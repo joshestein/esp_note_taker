@@ -11,8 +11,8 @@ from flask import Flask, request, send_from_directory
 from parakeet_mlx import from_pretrained
 from werkzeug.utils import secure_filename
 
-from gtasks_inbox import is_set_up, send_task
-from keywords import parse_todo
+from inbox import is_set_up, send
+from keywords import KEYWORDS, parse
 
 load_dotenv()
 
@@ -42,8 +42,9 @@ COMPANION_TOKEN: str = _token
 if shutil.which("ffmpeg") is None:
     raise RuntimeError("ffmpeg must be on PATH (parakeet-mlx decodes audio with it)")
 
-if not is_set_up():
-    print("gtasks-sync is not set up: the to do Keyword is off", flush=True)
+for _service in sorted({k.service for k in KEYWORDS}):
+    if not is_set_up(_service):
+        print(f"{_service} is not set up: its Keywords are off", flush=True)
 
 MODEL_ID = "mlx-community/parakeet-tdt-0.6b-v3"
 # Long captures are split into overlapping chunks and stitched back together.
@@ -79,18 +80,20 @@ def quarantine(capture):
 def send_keyword(capture, text):
     # The Transcript is already committed, so a failure here only logs: it
     # never makes a Broken Capture and is not retried (ADR 0012).
-    title = parse_todo(text)
-    if title is None:
+    match = parse(text)
+    if match is None:
         return
+    keyword = match.keyword
     try:
-        if send_task(capture, title):
-            print(f"Task from {capture}: {title}", flush=True)
+        if send(keyword.service, capture, {"text": match.text, **keyword.fields}):
+            print(f"{keyword.name} from {capture}: {match.text}", flush=True)
         else:
             print(
-                f"Keyword in {capture} skipped: gtasks-sync is not set up", flush=True
+                f"{keyword.name} in {capture} skipped: {keyword.service} is not set up",
+                flush=True,
             )
     except Exception as e:
-        print(f"Keyword in {capture} failed: {e}", flush=True)
+        print(f"{keyword.name} in {capture} failed: {e}", flush=True)
 
 
 def transcribe_worker(loaded):
